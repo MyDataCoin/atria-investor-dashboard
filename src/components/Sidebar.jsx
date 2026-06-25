@@ -6,8 +6,12 @@ import {
   LineChart, 
   Settings,
   X,
-  Award
+  Award,
+  ArrowLeft
 } from 'lucide-react';
+
+// Where the "back to home" button points (main Atria site).
+const HOME_URL = 'https://atria-pearl.vercel.app/';
 
 export default function Sidebar({ currentSection, onSectionChange, isOpen, onClose }) {
   const menuItems = [
@@ -110,6 +114,17 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
               Подтвержденный аккаунт
             </span>
           </div>
+
+          {/* Back to the main Atria site */}
+          <a
+            href={HOME_URL}
+            className="group mt-3 flex items-center justify-center gap-2 border border-white/10 hover:border-[#A38D6D] bg-white/5 hover:bg-[#A38D6D]/10 text-white/60 hover:text-white px-4 py-3 rounded-xl text-[10px] uppercase tracking-widest font-bold font-mono transition-all cursor-pointer"
+            id="back-to-home-btn"
+          >
+            <ArrowLeft size={14} className="text-[#A38D6D] transition-transform group-hover:-translate-x-0.5" />
+            <span>На главную</span>
+          </a>
+
           <p className="font-mono text-[9px] text-white/30 mt-4 text-center">
             © 2026 ATRIA
           </p>

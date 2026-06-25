@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Overview from './components/Overview';
@@ -14,6 +14,8 @@ import {
   INITIAL_ACTIVITIES 
 } from './data';
 
+import { fetchProperties } from './api/properties';
+
 import { Shield } from 'lucide-react';
 
 export default function App() {
@@ -26,6 +28,30 @@ export default function App() {
   const [stats, setStats] = useState(INITIAL_STATS);
   const [properties, setProperties] = useState(INITIAL_PROPERTIES);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
+
+  // Where the property catalogue is coming from: 'mock' until the backend
+  // answers, then 'api'; 'fallback' if the request failed and we kept mocks.
+  const [propertiesSource, setPropertiesSource] = useState('mock');
+
+  // Load the real property catalogue from the backend on mount. The endpoint
+  // is public, so no token is needed. On failure we keep the mock data so the
+  // dashboard never renders empty during integration.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchProperties({ signal: controller.signal })
+      .then((apiProperties) => {
+        if (apiProperties.length > 0) {
+          setProperties(apiProperties);
+          setPropertiesSource('api');
+        }
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.warn('[Atria] properties load failed, using mock data:', err?.message);
+        setPropertiesSource('fallback');
+      });
+    return () => controller.abort();
+  }, []);
 
   // Core callback: Investing / acquiring additional shares from a property card
   const handleInvestInProperty = (propertyId, quantity, cost) => {
@@ -237,6 +263,11 @@ export default function App() {
 
         {/* Dynamic content scroll workspace */}
         <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-10 overflow-y-auto">
+          {propertiesSource === 'fallback' && (
+            <div className="rounded-sm border border-amber-200 bg-[#FAF8F3] px-4 py-2 text-[11px] font-mono text-amber-800">
+              Бэкенд недоступен — показаны демо-данные. Проверьте VITE_API_BASE_URL.
+            </div>
+          )}
           {renderContent()}
 
           {/* Persistent global regulator reassurance footer */}
