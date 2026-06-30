@@ -38,7 +38,7 @@ export default function Header({ onMenuToggle, investorName, portfolioValue, cur
 
       {/* Right side: Quick Readout, ID Info */}
       <div className="flex items-center gap-6 lg:gap-8">
-        
+
         {/* Quick Portfolio Live Value Indicator */}
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-0.5">

@@ -10,6 +10,9 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
   const filteredActs = activities.filter((act) => {
     if (act.type === 'valuation' || act.type === 'document') return false;
     if (filterType === 'all') return true;
+    // 'tx' is not an activity type but a cross-cutting view: anything that
+    // carries an on-chain transaction hash.
+    if (filterType === 'tx') return Boolean(act.txHash);
     return act.type === filterType;
   });
 
@@ -27,7 +30,8 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
   const activityFilters = [
     { label: 'Все хроники', value: 'all' },
     { label: 'Выплаты', value: 'payout' },
-    { label: 'Покупка долей', value: 'purchase' }
+    { label: 'Покупка долей', value: 'purchase' },
+    { label: 'Транзакции', value: 'tx' }
   ];
 
   return (

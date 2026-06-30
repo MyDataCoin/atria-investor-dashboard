@@ -1,0 +1,103 @@
+name: CI + Deploy
+# Build & lint on every push/PR; deploy the static bundle to the Ubuntu server only on
+# pushes to the default branch (and manual runs). All connection details are GitHub
+# Secrets — nothing sensitive lives in this file.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        # VITE_* vars are inlined at build time, so the API base URL must be present
+        # here (not on the server). It is exposed to the browser anyway, so it is a plain
+        # value, not a secret — change it here if the backend URL changes.
+        env:
+          VITE_API_BASE_URL: https://atria-api.eaysdev.online
+        run: npm run build
+
+      - name: Upload built bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+    needs: build-test
+    # Never deploy from pull requests (incl. forks) — only direct pushes / manual runs.
+    if: github.event_name != 'pull_request'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Download built bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Package deployment bundle
+        # Ship the already-built static files — no Node/build toolchain needed on the server.
+        run: tar -czf deploy.tar.gz -C dist .
+
+      - name: Copy bundle to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          source: "deploy.tar.gz"
+          target: "/opt/atria-dashboard"
+          overwrite: true
+
+      - name: Publish the bundle on the server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          # nginx web root the SPA is served from. Change to match your server config.
+          WEB_ROOT: /var/www/atria-dashboard
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          envs: WEB_ROOT
+          script: |
+            set -euo pipefail
+
+            cd /opt/atria-dashboard
+
+            # Unpack the new bundle into a clean staging dir, then swap it into the web root
+            # atomically-ish so visitors never see a half-copied site. Wiping staging first
+            # prunes files deleted in git (tar -x overlays but never removes stale assets).
+            rm -rf release
+            mkdir -p release
+            tar -xzf deploy.tar.gz -C release
+            rm -f deploy.tar.gz
+
+            sudo mkdir -p "$WEB_ROOT"
+            # Mirror staging -> web root, deleting files that no longer exist in the build.
+            sudo rsync -a --delete release/ "$WEB_ROOT"/
+
+            ls -la "$WEB_ROOT"
