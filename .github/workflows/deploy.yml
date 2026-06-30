@@ -96,8 +96,23 @@ jobs:
             tar -xzf deploy.tar.gz -C release
             rm -f deploy.tar.gz
 
-            sudo mkdir -p "$WEB_ROOT"
-            # Mirror staging -> web root, deleting files that no longer exist in the build.
-            sudo rsync -a --delete release/ "$WEB_ROOT"/
+            # Stage the new site next to the web root (same filesystem) so the
+            # cutover is a rename rather than a slow in-place copy. rsync isn't
+            # installed on the server, so cp + mv stand in for it — and this also
+            # prunes files deleted in the build, since the live dir is replaced
+            # wholesale rather than overlaid.
+            STAGE="$WEB_ROOT.incoming"
+            sudo rm -rf "$STAGE" "$WEB_ROOT.old"
+            sudo mkdir -p "$STAGE"
+            sudo cp -a release/. "$STAGE"/
+
+            # Swap: move the live dir aside, drop the new one in, prune the old.
+            # Both mv's are renames on one filesystem, so the window where the site
+            # is absent is two instantaneous operations rather than a full copy.
+            if [ -d "$WEB_ROOT" ]; then
+              sudo mv "$WEB_ROOT" "$WEB_ROOT.old"
+            fi
+            sudo mv "$STAGE" "$WEB_ROOT"
+            sudo rm -rf "$WEB_ROOT.old"
 
             ls -la "$WEB_ROOT"
