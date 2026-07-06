@@ -10,6 +10,7 @@ import SettingsPanel from './components/SettingsPanel';
 // Real backend feeds (catalogue + investor portfolio).
 import { fetchProperties } from './api/properties';
 import { fetchPortfolio } from './api/investments';
+import { fetchKycProfile } from './api/kyc';
 import {
   applyInvestmentsToProperties,
   derivePortfolioStats,
@@ -22,7 +23,8 @@ import { Shield, Loader2, AlertTriangle } from 'lucide-react';
 export default function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [investorName, setInvestorName] = useState('Жан-Пьер Сутер');
+  // Filled from KYC (/kyc/me) once the backend exposes fullName; neutral until then.
+  const [investorName, setInvestorName] = useState('Инвестор');
   // KGS only for now — FX conversion is disabled (backend amounts are in som).
   const [currency, setCurrency] = useState('KGS');
 
@@ -59,6 +61,15 @@ export default function App() {
         setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
         setStats(derivePortfolioStats(portfolio));
         setActivities(buildActivitiesFromInvestments(portfolio.investments, catalogue));
+
+        // Pull the investor's name from KYC. Non-fatal: keeps the neutral
+        // fallback if unauthenticated, no KYC profile, or the field is absent.
+        try {
+          const kyc = await fetchKycProfile({ signal });
+          if (kyc.fullName) setInvestorName(kyc.fullName);
+        } catch (kycErr) {
+          if (kycErr?.name === 'AbortError') throw kycErr;
+        }
       } catch (err) {
         if (err?.name === 'AbortError') return;
         setLoadError(err?.message ?? 'Не удалось загрузить данные портфеля.');
