@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Overview from './components/Overview';
@@ -7,25 +7,69 @@ import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
 import SettingsPanel from './components/SettingsPanel';
 
-// Load default mock datasets
-import { 
-  INITIAL_STATS, 
-  INITIAL_PROPERTIES, 
-  INITIAL_ACTIVITIES 
-} from './data';
+// Real backend feeds (catalogue + investor portfolio).
+import { fetchProperties } from './api/properties';
+import { fetchPortfolio } from './api/investments';
+import {
+  applyInvestmentsToProperties,
+  derivePortfolioStats,
+  buildActivitiesFromInvestments,
+  buildAssetAllocation,
+} from './api/adapters';
 
-import { Shield } from 'lucide-react';
+import { Shield, Loader2, AlertTriangle } from 'lucide-react';
 
 export default function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [investorName, setInvestorName] = useState('Жан-Пьер Сутер');
-  const [currency, setCurrency] = useState('USD');
-  
-  // Fully reactive state for global portfolio stats & ledgers
-  const [stats, setStats] = useState(INITIAL_STATS);
-  const [properties, setProperties] = useState(INITIAL_PROPERTIES);
-  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
+  // KGS only for now — FX conversion is disabled (backend amounts are in som).
+  const [currency, setCurrency] = useState('KGS');
+
+  // Portfolio state, hydrated from the backend on mount.
+  const [stats, setStats] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  // Load the public catalogue and the investor's portfolio in parallel, then
+  // merge the holdings into the catalogue and derive the headline stats.
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        // The catalogue is public and required. The portfolio needs a bearer
+        // token (auth lives on the main site) — treat its absence as "no
+        // holdings yet" rather than failing the whole dashboard.
+        const catalogue = await fetchProperties({ signal });
+
+        let portfolio = { totalInvested: 0, activeCount: 0, investments: [] };
+        try {
+          portfolio = await fetchPortfolio({ signal });
+        } catch (portfolioErr) {
+          if (portfolioErr?.name === 'AbortError') throw portfolioErr;
+          // Leave the empty portfolio default; the catalogue still renders.
+        }
+
+        setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
+        setStats(derivePortfolioStats(portfolio));
+        setActivities(buildActivitiesFromInvestments(portfolio.investments, catalogue));
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        setLoadError(err?.message ?? 'Не удалось загрузить данные портфеля.');
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    }
+
+    load();
+    return () => controller.abort();
+  }, []);
 
   // Core callback: Investing / acquiring additional shares from a property card
   const handleInvestInProperty = (propertyId, quantity, cost) => {
@@ -152,6 +196,19 @@ export default function App() {
     }
   };
 
+  // The dashboard shows only assets the investor actually holds — i.e. catalogue
+  // entries enriched with an active stake from /investments/portfolio.
+  const ownedProperties = properties.filter((p) => p.tokensOwned > 0);
+
+  // Real capital allocation across the investor's holdings.
+  const assetAllocation = buildAssetAllocation(ownedProperties);
+
+  const emptyHoldings = (
+    <div className="py-16 text-center text-gray-400 font-serif">
+      У вас пока нет активов в собственности.
+    </div>
+  );
+
   // Section Routing rendering function
   const renderContent = () => {
     switch (currentSection) {
@@ -166,16 +223,18 @@ export default function App() {
               <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                 <div>
                   <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold block">Объекты недвижимости</span>
-                  <h4 className="font-serif text-lg font-bold text-gray-900">Каталог активов</h4>
+                  <h4 className="font-serif text-lg font-bold text-gray-900">Мои активы</h4>
                 </div>
-                <button 
+                <button
                   onClick={() => setCurrentSection('properties')}
                   className="text-xs text-[#A38D6D] hover:underline uppercase tracking-wide font-bold font-mono cursor-pointer"
                 >
-                  Посмотреть все активы →
+                  Посмотреть все мои активы →
                 </button>
               </div>
-              <PropertiesList properties={properties.slice(0, 3)} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />
+              {ownedProperties.length === 0
+                ? emptyHoldings
+                : <PropertiesList properties={ownedProperties.slice(0, 3)} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />}
             </div>
 
             {/* Micro timelines preview section */}
@@ -197,11 +256,13 @@ export default function App() {
           </div>
         );
       case 'properties':
-        return <PropertiesList properties={properties} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />;
+        return ownedProperties.length === 0
+          ? emptyHoldings
+          : <PropertiesList properties={ownedProperties} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />;
       case 'activity':
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':
-        return <AnalyticsDash currency={currency} />;
+        return <AnalyticsDash currency={currency} allocation={assetAllocation} />;
       case 'settings':
         return <SettingsPanel investorName={investorName} currency={currency} onCurrencyChange={setCurrency} />;
       default:
@@ -228,16 +289,29 @@ export default function App() {
       <div className="flex-1 flex flex-col lg:pl-72 min-w-0 transition-all duration-300">
         
         {/* Editorial Top header bar */}
-        <Header 
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
+        <Header
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           investorName={investorName}
-          portfolioValue={stats.currentAssetValue}
+          portfolioValue={stats?.currentAssetValue ?? 0}
           currency={currency}
         />
 
         {/* Dynamic content scroll workspace */}
         <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-10 overflow-y-auto">
-          {renderContent()}
+          {loading ? (
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-gray-400">
+              <Loader2 size={28} className="animate-spin text-[#A38D6D]" />
+              <span className="text-xs uppercase tracking-widest font-bold">Синхронизация реестра активов…</span>
+            </div>
+          ) : loadError ? (
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-center">
+              <AlertTriangle size={28} className="text-rose-500" />
+              <span className="text-sm font-serif font-bold text-gray-900">Не удалось загрузить портфель</span>
+              <span className="text-xs text-gray-500 max-w-md">{loadError}</span>
+            </div>
+          ) : (
+            renderContent()
+          )}
 
           {/* Persistent global regulator reassurance footer */}
           <footer className="pt-10 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-gray-450 text-[10px] font-mono text-left">

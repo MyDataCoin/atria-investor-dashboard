@@ -1,32 +1,22 @@
 /**
- * Formats a USD amount to the target currency based on specified exchange rates.
- * 1 USD = 0.92 EUR
- * 1 USD = 87.0 KGS
+ * Formats a monetary amount for display in Kyrgyz som (KGS).
+ *
+ * Amounts already arrive in KGS from the backend, so there is NO FX conversion —
+ * USD/EUR are disabled until a real exchange-rate source exists. The `currency`
+ * argument is kept for call-site compatibility but ignored; everything renders
+ * in som.
  */
-export function formatVal(usdValue, currency = 'USD', includeFraction = false) {
-  const rates = {
-    USD: { rate: 1, symbol: '$', suffix: false },
-    EUR: { rate: 0.92, symbol: '€', suffix: false },
-    KGS: { rate: 87.0, symbol: ' с', suffix: true }
-  };
-  
-  const config = rates[currency] || rates.USD;
-  const converted = usdValue * config.rate;
-  
-  let formattedValue;
+export function formatVal(amount, currency = 'KGS', includeFraction = false) {
+  const value = Number(amount ?? 0);
+
+  let formatted;
   if (includeFraction) {
-    formattedValue = converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    formatted = value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } else if (value < 1000 && value % 1 !== 0) {
+    formatted = value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   } else {
-    if (converted < 1000 && converted % 1 !== 0) {
-      formattedValue = converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } else {
-      formattedValue = Math.round(converted).toLocaleString('en-US');
-    }
+    formatted = Math.round(value).toLocaleString('ru-RU');
   }
 
-  if (config.suffix) {
-    return `${formattedValue}${config.symbol}`;
-  } else {
-    return `${config.symbol}${formattedValue}`;
-  }
+  return `${formatted} с`;
 }

@@ -74,3 +74,155 @@ export function mapPropertyDto(dto) {
     tokenAddress: shortAddress(dto.id),
   };
 }
+
+// Backend InvestmentStatus -> the lowercase status tokens the UI uses.
+const INVESTMENT_STATUS = {
+  PendingPayment: 'pending',
+  Active: 'active',
+  Failed: 'failed',
+  Cancelled: 'cancelled',
+};
+
+/**
+ * Map an API InvestmentDto to the shape the dashboard consumes.
+ *
+ * Backend-fed: id, propertyId, amount, currency, createdAtUtc.
+ * Derived:     status (lowercase UI token, `pending` when unknown).
+ */
+export function mapInvestmentDto(dto) {
+  return {
+    id: dto.id,
+    propertyId: dto.propertyId,
+    amount: Number(dto.amount ?? 0),
+    currency: dto.currency ?? 'USD',
+    status: INVESTMENT_STATUS[dto.status] ?? 'pending',
+    createdAtUtc: dto.createdAtUtc ?? null,
+  };
+}
+
+/**
+ * Map an API PortfolioDto to the aggregated portfolio shape.
+ *
+ * Backend-fed: totalInvested, activeCount, investments[] (each mapped).
+ */
+export function mapPortfolioDto(dto) {
+  return {
+    totalInvested: Number(dto?.totalInvested ?? 0),
+    activeCount: Number(dto?.activeCount ?? 0),
+    investments: (dto?.investments ?? []).map(mapInvestmentDto),
+  };
+}
+
+/**
+ * Map an API PaymentSessionDto to what the client needs to redirect the payer.
+ */
+export function mapPaymentSessionDto(dto) {
+  return {
+    sessionId: dto?.sessionId ?? null,
+    paymentUrl: dto?.paymentUrl ?? null,
+  };
+}
+
+/**
+ * Merge the investor's holdings into the public property catalogue.
+ *
+ * Only `active` investments (confirmed payment) count as holdings. For each
+ * property we sum the invested amount and derive tokensOwned / ownership from
+ * the property's own tokenPrice and totalTokens. Properties the investor has no
+ * active stake in keep the zero per-investor fields set by `mapPropertyDto`.
+ *
+ * @param {Array} properties  catalogue items from `mapPropertyDto`.
+ * @param {Array} investments investor investments from `mapInvestmentDto`.
+ */
+export function applyInvestmentsToProperties(properties, investments) {
+  const investedByProperty = new Map();
+  for (const inv of investments) {
+    if (inv.status !== 'active') continue;
+    investedByProperty.set(
+      inv.propertyId,
+      (investedByProperty.get(inv.propertyId) ?? 0) + inv.amount,
+    );
+  }
+
+  return properties.map((prop) => {
+    const invested = investedByProperty.get(prop.id);
+    if (!invested) return prop;
+
+    const tokensOwned = prop.tokenPrice > 0 ? Math.round(invested / prop.tokenPrice) : 0;
+    const ownershipPercentage =
+      prop.totalTokens > 0 ? (tokensOwned / prop.totalTokens) * 100 : 0;
+
+    return { ...prop, totalInvested: invested, tokensOwned, ownershipPercentage };
+  });
+}
+
+/**
+ * Derive the Overview/Header stats block from a mapped PortfolioDto.
+ *
+ * Backend-fed: totalInvested. currentAssetValue is shown at cost (no valuation
+ * feed yet). Yield, ROI and distribution figures have no API source and stay 0
+ * until the backend exposes them — honest zeros over invented numbers.
+ */
+export function derivePortfolioStats(portfolio) {
+  const totalInvested = Number(portfolio?.totalInvested ?? 0);
+  return {
+    totalInvested,
+    currentAssetValue: totalInvested,
+    monthlyIncome: 0,
+    averageRoi: 0,
+    portfolioGrowthPct: 0,
+    unrealizedGains: 0,
+    cashDistributions: 0,
+  };
+}
+
+// Palette for the capital-allocation chart, cycled per property.
+const ALLOCATION_PALETTE = ['#c4862f', '#e6a951', '#a96a26', '#6f7d6f', '#8a5a2b', '#b9985f'];
+
+/**
+ * Build the capital-allocation breakdown from properties the investor holds.
+ *
+ * Each slice is one property, sized by the invested amount (already merged in by
+ * `applyInvestmentsToProperties`). Percentages are of the total held capital.
+ * Returns an empty array when the investor has no holdings.
+ */
+export function buildAssetAllocation(properties) {
+  const held = (properties ?? []).filter((p) => p.totalInvested > 0);
+  const total = held.reduce((sum, p) => sum + p.totalInvested, 0);
+
+  return held.map((p, i) => ({
+    name: p.name,
+    value: p.totalInvested,
+    percentage: total > 0 ? Number(((p.totalInvested / total) * 100).toFixed(1)) : 0,
+    color: ALLOCATION_PALETTE[i % ALLOCATION_PALETTE.length],
+  }));
+}
+
+/**
+ * Build the activity timeline from real investments (one `purchase` entry each),
+ * newest first. Property names are resolved from the catalogue when available.
+ */
+export function buildActivitiesFromInvestments(investments, properties) {
+  const nameById = new Map((properties ?? []).map((p) => [p.id, p.name]));
+
+  return (investments ?? [])
+    .map((inv) => {
+      const timestamp = inv.createdAtUtc ? new Date(inv.createdAtUtc) : new Date();
+      const propertyName = nameById.get(inv.propertyId) ?? 'Объект недвижимости';
+      return {
+        id: `inv-${inv.id}`,
+        type: 'purchase',
+        title: `Инвестиция в «${propertyName}»`,
+        propertyName,
+        amount: inv.amount,
+        date: timestamp.toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
+        timestamp,
+        status: 'completed',
+      };
+    })
+    .sort((a, b) => b.timestamp - a.timestamp);
+}

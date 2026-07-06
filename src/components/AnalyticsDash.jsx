@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { CH_MONTHLY_INCOME, CH_PORTFOLIO_GROWTH, CH_ASSET_ALLOCATION } from '../data';
+import { CH_MONTHLY_INCOME, CH_PORTFOLIO_GROWTH } from '../data';
 import { formatVal } from '../utils';
 
-export default function AnalyticsDash({ currency = 'USD' }) {
+export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
   const [hoveredIncome, setHoveredIncome] = useState(null);
   const [hoveredGrowth, setHoveredGrowth] = useState(null);
 
@@ -239,30 +239,36 @@ export default function AnalyticsDash({ currency = 'USD' }) {
             </p>
 
             {/* List comparative bars - Render as beautiful grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 mt-6">
-              {CH_ASSET_ALLOCATION.map((item, idx) => {
-                return (
-                  <div key={idx} className="space-y-1.5" id={`analytics-alloc-item-${idx}`}>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-gray-900 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        {item.name}
-                      </span>
-                      <span className="text-gray-600 font-bold">
-                        {formatVal(item.value, currency)} ({item.percentage}%)
-                      </span>
+            {allocation.length === 0 ? (
+              <div className="py-10 text-center text-gray-400 text-sm mt-4">
+                Нет вложений для распределения капитала.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 mt-6">
+                {allocation.map((item, idx) => {
+                  return (
+                    <div key={idx} className="space-y-1.5" id={`analytics-alloc-item-${idx}`}>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-gray-900 flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          {item.name}
+                        </span>
+                        <span className="text-gray-600 font-bold">
+                          {formatVal(item.value, currency)} ({item.percentage}%)
+                        </span>
+                      </div>
+                      {/* Proportional bar */}
+                      <div className="w-full h-1.5 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                        />
+                      </div>
                     </div>
-                    {/* Visual simulated bar */}
-                    <div className="w-full h-1.5 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">

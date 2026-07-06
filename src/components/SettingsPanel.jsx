@@ -43,16 +43,10 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[8px] tracking-widest uppercase font-bold text-gray-400">Предпочтительная валюта оценки</label>
-                <select 
-                  value={currency}
-                  onChange={(e) => onCurrencyChange(e.target.value)}
-                  className="w-full text-xs p-2.5 border border-gray-250 rounded-md bg-white text-gray-900 focus:outline-none focus:border-[#A38D6D]"
-                >
-                  <option value="USD">USD ($) - Доллар США</option>
-                  <option value="EUR">EUR (€) - Евро</option>
-                  <option value="KGS">KGS (с) - Кыргызский сом</option>
-                </select>
+                <label className="block text-[8px] tracking-widest uppercase font-bold text-gray-400">Валюта оценки</label>
+                <div className="w-full text-xs p-3 border border-gray-200 rounded-md bg-gray-50 text-gray-500 font-semibold select-none">
+                  KGS (с) — Кыргызский сом
+                </div>
               </div>
             </div>
           </div>
