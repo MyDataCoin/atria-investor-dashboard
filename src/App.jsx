@@ -6,6 +6,7 @@ import PropertiesList from './components/PropertiesList';
 import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
 import TaxDocPanel from './components/TaxDocPanel';
+import HelpDesk from './components/HelpDesk';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
@@ -284,6 +285,8 @@ export default function App() {
             currency={currency}
           />
         );
+      case 'support':
+        return <HelpDesk />;
       case 'settings':
         return <SettingsPanel investorName={investorName} currency={currency} onCurrencyChange={setCurrency} />;
       default:

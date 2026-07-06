@@ -6,6 +6,7 @@ import {
   LineChart,
   Settings,
   FileText,
+  LifeBuoy,
   X,
   Award,
   ArrowLeft
@@ -21,6 +22,7 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
     { id: 'activity', label: 'История операций', icon: Activity },
     { id: 'analytics', label: 'Аналитика и тренды', icon: LineChart },
     { id: 'taxdoc', label: 'Налоговый документ', icon: FileText },
+    { id: 'support', label: 'Поддержка', icon: LifeBuoy },
     { id: 'settings', label: 'Настройки', icon: Settings },
   ];
 
