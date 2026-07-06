@@ -1,10 +1,11 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Building, 
-  Activity, 
-  LineChart, 
+import {
+  LayoutDashboard,
+  Building,
+  Activity,
+  LineChart,
   Settings,
+  FileText,
   X,
   Award,
   ArrowLeft
@@ -19,6 +20,7 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
     { id: 'properties', label: 'Активы', icon: Building },
     { id: 'activity', label: 'История операций', icon: Activity },
     { id: 'analytics', label: 'Аналитика и тренды', icon: LineChart },
+    { id: 'taxdoc', label: 'Налоговый документ', icon: FileText },
     { id: 'settings', label: 'Настройки', icon: Settings },
   ];
 

@@ -5,6 +5,7 @@ import Overview from './components/Overview';
 import PropertiesList from './components/PropertiesList';
 import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
+import TaxDocPanel from './components/TaxDocPanel';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
@@ -274,6 +275,15 @@ export default function App() {
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':
         return <AnalyticsDash currency={currency} allocation={assetAllocation} />;
+      case 'taxdoc':
+        return (
+          <TaxDocPanel
+            investorName={investorName}
+            properties={ownedProperties}
+            totalInvested={stats?.totalInvested ?? 0}
+            currency={currency}
+          />
+        );
       case 'settings':
         return <SettingsPanel investorName={investorName} currency={currency} onCurrencyChange={setCurrency} />;
       default:
