@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LifeBuoy, Plus, Send, ArrowLeft, CheckCircle2, Loader2, MessageSquare } from 'lucide-react';
+import { LifeBuoy, Plus, Send, ArrowLeft, CheckCircle2, Loader2, MessageSquare, Star } from 'lucide-react';
 import {
   TICKET_CATEGORIES,
   fetchTickets,
@@ -125,6 +125,7 @@ export default function HelpDesk() {
             <ul className="divide-y divide-gray-100">
               {tickets.map((t) => {
                 const last = t.messages[t.messages.length - 1];
+                const answered = last?.author === 'support';
                 return (
                   <li key={t.id}>
                     <button
@@ -133,6 +134,9 @@ export default function HelpDesk() {
                     >
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
+                          {answered && (
+                            <Star size={13} className="text-amber-400 fill-amber-400 shrink-0" aria-label="Есть ответ поддержки" />
+                          )}
                           <span className="text-[9px] uppercase tracking-wider font-bold text-[#A38D6D] bg-[#A38D6D]/10 px-2 py-0.5 rounded">{t.category}</span>
                           <StatusChip status={t.status} />
                         </div>
