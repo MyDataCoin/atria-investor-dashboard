@@ -7,6 +7,7 @@ import {
   createTicket,
   addMessage,
   closeTicket,
+  ticketsConnected,
 } from '../api/tickets';
 
 const STATUS = {
@@ -276,7 +277,9 @@ export default function HelpDesk() {
 
       <p className="flex items-center gap-1.5 text-[10px] text-gray-400">
         <MessageSquare size={12} className="text-[#A38D6D]" />
-        Обращения пока хранятся локально в браузере — ответы поддержки появятся после подключения бэкенда.
+        {ticketsConnected
+          ? 'Обращения передаются в службу поддержки ATRIA — ответы появятся здесь.'
+          : 'Обращения пока хранятся локально в браузере — ответы поддержки появятся после подключения бэкенда.'}
       </p>
     </div>
   );
