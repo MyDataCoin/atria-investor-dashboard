@@ -22,7 +22,7 @@ import { apiFetch } from './client';
 const flag = import.meta.env.VITE_TICKETS_API;
 const USE_API = flag !== '0' && flag !== 'false';
 
-export const TICKET_CATEGORIES = ['KYC', 'Платежи', 'Инвестиции', 'Документы', 'Другое'];
+export const TICKET_CATEGORIES = ['Платежи', 'Инвестиции', 'Документы', 'Другое'];
 
 /** Normalize a backend Ticket DTO into the shape the UI already consumes. */
 function mapTicketDto(dto) {

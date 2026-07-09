@@ -6,13 +6,12 @@ import {
   fetchTicket,
   createTicket,
   addMessage,
-  closeTicket,
   ticketsConnected,
 } from '../api/tickets';
 
 const STATUS = {
   open: { label: 'Открыт', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
-  pending: { label: 'В ожидании', cls: 'bg-sky-50 text-sky-600 border-sky-200' },
+  pending: { label: 'Отвечено', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
   closed: { label: 'Закрыт', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 };
 
@@ -85,13 +84,6 @@ export default function HelpDesk() {
     } finally {
       setSending(false);
     }
-  };
-
-  const handleClose = async () => {
-    if (!active) return;
-    await closeTicket(active.id);
-    setActive(await fetchTicket(active.id));
-    reload();
   };
 
   const headline = (
@@ -224,11 +216,6 @@ export default function HelpDesk() {
               </div>
               <h4 className="font-serif text-lg font-bold text-gray-900">{active.subject}</h4>
             </div>
-            {active.status !== 'closed' && (
-              <button onClick={handleClose} className="text-[9px] uppercase tracking-widest font-bold text-gray-400 hover:text-rose-600 border border-gray-200 hover:border-rose-300 rounded px-3 py-1.5 cursor-pointer transition-colors shrink-0">
-                Закрыть
-              </button>
-            )}
           </div>
 
           {/* Thread */}
