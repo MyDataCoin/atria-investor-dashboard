@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Plus, Shield, CheckCircle } from 'lucide-react';
+import { MapPin, Plus, Shield, CheckCircle, X, Building2, Layers, CalendarDays, FileText, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatVal } from '../utils';
 
@@ -8,6 +8,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
   const [actionMode, setActionMode] = useState('buy');
   const [tokenQuantity, setTokenQuantity] = useState(100);
   const [transactionSuccess, setTransactionSuccess] = useState(false);
+  const [detailProperty, setDetailProperty] = useState(null);
 
   const handleOpenAction = (property, mode = 'buy') => {
     setSelectedProperty(property);
@@ -50,6 +51,9 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {properties.map((prop, i) => {
           const isInvested = prop.ownershipPercentage > 0;
+          // Buying more is only possible while the offering is open on the site.
+          // Selling own tokens stays available even after it's sold out (completed).
+          const canBuy = prop.status === 'active';
           return (
             <motion.div
               key={prop.id}
@@ -60,11 +64,14 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
               id={`property-card-${prop.id}`}
             >
               {/* Visual section of card */}
-              <div className="relative h-56 bg-[#1A1A1A] overflow-hidden group">
-                <img 
+              <div
+                className="relative h-56 bg-[#1A1A1A] overflow-hidden group cursor-pointer"
+                onClick={() => setDetailProperty(prop)}
+              >
+                <img
                   referrerPolicy="no-referrer"
-                  src={prop.image} 
-                  alt={prop.name} 
+                  src={prop.image}
+                  alt={prop.name}
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                 />
                 
@@ -90,19 +97,17 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
 
               {/* Information body */}
               <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                <div className="space-y-1.5 text-left">
-                  <div className="flex items-center gap-1 text-[#A38D6D] text-[10px] uppercase tracking-wider font-bold">
-                    <MapPin size={11} />
-                    <span>{prop.city}, {prop.country}</span>
-                  </div>
-                  
-                  <h4 className="font-serif text-lg font-bold tracking-tight text-gray-900 leading-snug">
+                <div className="space-y-1.5 text-left cursor-pointer" onClick={() => setDetailProperty(prop)}>
+                  {(prop.address || prop.city) && (
+                    <div className="flex items-center gap-1 text-[#A38D6D] text-[10px] uppercase tracking-wider font-bold">
+                      <MapPin size={11} className="shrink-0" />
+                      <span className="truncate">{prop.address || prop.city}</span>
+                    </div>
+                  )}
+
+                  <h4 className="font-serif text-lg font-bold tracking-tight text-gray-900 leading-snug hover:text-[#A38D6D] transition-colors">
                     {prop.name}
                   </h4>
-                  
-                  <p className="text-[11px] text-gray-400 font-sans italic">
-                    {prop.type} • Построен в {prop.completionYear} г.
-                  </p>
                 </div>
 
                 {/* Real-estate statistics table */}
@@ -129,41 +134,37 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                   </div>
 
                   <div className="flex flex-col text-left">
-                    <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold">Код токена</span>
-                    <span className="text-[10px] text-amber-700 font-medium truncate tracking-tighter mt-0.5">
-                      {prop.tokenAddress}
+                    <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold">Куплено токенов</span>
+                    <span className="text-sm font-montserrat font-bold text-gray-900 mt-0.5">
+                      {(prop.tokensOwned || 0).toLocaleString('ru-RU')}
                     </span>
                   </div>
                 </div>
 
                  {/* Call-to-action details */}
                  <div className="pt-2">
-                   {prop.status === 'exited' ? (
-                     <button 
-                       disabled
-                       className="w-full bg-gray-50 border border-gray-100 text-gray-400 px-4 py-2 rounded-md text-[10px] uppercase font-bold tracking-widest text-center"
-                     >
-                       Долевые права переданы
-                     </button>
-                   ) : isInvested ? (
+                   {isInvested ? (
+                     // Owns tokens: can always sell; can buy more only while the offering is open.
                      <div className="flex gap-2">
-                       <button
-                         id={`acquire-shares-btn-${prop.id}`}
-                         onClick={() => handleOpenAction(prop, 'buy')}
-                         className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer bg-[#111111] hover:bg-[#A38D6D] text-white py-2.5 rounded-md text-[9px] uppercase tracking-widest transition-all shadow-xs font-semibold"
-                       >
-                         <Plus size={10} />
-                         <span>Купить</span>
-                       </button>
+                       {canBuy && (
+                         <button
+                           id={`acquire-shares-btn-${prop.id}`}
+                           onClick={() => handleOpenAction(prop, 'buy')}
+                           className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer bg-[#111111] hover:bg-[#A38D6D] text-white py-2.5 rounded-md text-[9px] uppercase tracking-widest transition-all shadow-xs font-semibold"
+                         >
+                           <Plus size={10} />
+                           <span>Купить</span>
+                         </button>
+                       )}
                        <button
                          id={`sell-shares-btn-${prop.id}`}
                          onClick={() => handleOpenAction(prop, 'sell')}
-                         className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer border border-[#A38D6D] text-[#A38D6D] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 py-2.5 rounded-md text-[9px] uppercase tracking-widest transition-all shadow-xs font-semibold bg-white"
+                         className={`${canBuy ? 'flex-1' : 'w-full'} flex items-center justify-center gap-1.5 cursor-pointer border border-[#A38D6D] text-[#A38D6D] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 py-2.5 rounded-md text-[9px] uppercase tracking-widest transition-all shadow-xs font-semibold bg-white`}
                        >
                          <span>Продать</span>
                        </button>
                      </div>
-                   ) : (
+                   ) : canBuy ? (
                      <button
                        id={`acquire-shares-btn-${prop.id}`}
                        onClick={() => handleOpenAction(prop, 'buy')}
@@ -171,6 +172,13 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                      >
                        <Plus size={12} />
                        <span>Приобрести токены (доли)</span>
+                     </button>
+                   ) : (
+                     <button
+                       disabled
+                       className="w-full bg-gray-50 border border-gray-100 text-gray-400 px-4 py-2 rounded-md text-[10px] uppercase font-bold tracking-widest text-center"
+                     >
+                       Распродано
                      </button>
                    )}
                  </div>
@@ -353,6 +361,194 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* Right-side property detail panel (investor view — read-only, no admin controls) */}
+      <AnimatePresence>
+        {detailProperty && (() => {
+          const dp = detailProperty;
+          const invested = dp.ownershipPercentage > 0;
+          const soldPct = dp.totalTokens > 0
+            ? ((dp.totalTokens - dp.availableTokens) / dp.totalTokens) * 100
+            : 0;
+          const canBuy = dp.status === 'active';
+          const specs = [
+            ['Полный адрес', dp.address],
+            ['Тип недвижимости', dp.propertyType],
+            ['Город', dp.city],
+            ['Год постройки', dp.completionYear],
+            ['Застройщик', dp.developer],
+            ['Этажей', dp.floors],
+          ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+
+          return (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-xs"
+                onClick={() => setDetailProperty(null)}
+              />
+
+              <motion.aside
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
+                className="relative z-10 w-full max-w-md h-full bg-white shadow-2xl flex flex-col font-montserrat"
+              >
+                {/* Header */}
+                <div className="relative h-40 shrink-0 overflow-hidden bg-[#1A1A1A]">
+                  <img referrerPolicy="no-referrer" src={dp.image} alt={dp.name} className="w-full h-full object-cover opacity-70" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <button
+                    onClick={() => setDetailProperty(null)}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 flex items-center justify-center cursor-pointer transition-colors"
+                    aria-label="Закрыть"
+                  >
+                    <X size={16} />
+                  </button>
+                  <div className="absolute bottom-4 left-6 right-6 text-left">
+                    <span className="text-[8px] uppercase tracking-[0.2em] text-white/60 font-bold block">Карточка объекта</span>
+                    <h3 className="font-serif text-2xl font-bold text-white leading-tight mt-1">{dp.name}</h3>
+                    {(dp.address || dp.city) && (
+                      <p className="text-[11px] text-white/70 flex items-center gap-1 mt-1">
+                        <MapPin size={11} className="shrink-0" /> {dp.address || dp.city}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scrollable body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-7 text-left">
+                  {dp.description && (
+                    <section className="space-y-2">
+                      <h4 className="font-serif text-base font-bold text-gray-900">Описание объекта</h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{dp.description}</p>
+                    </section>
+                  )}
+
+                  {/* Tokenization */}
+                  <section className="space-y-3">
+                    <h4 className="font-serif text-base font-bold text-gray-900">Токенизация</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        ['Цена токена', formatVal(dp.tokenPrice, dp.currency)],
+                        ['Доступно', (dp.availableTokens ?? 0).toLocaleString('ru-RU')],
+                        ['Всего токенов', (dp.totalTokens ?? 0).toLocaleString('ru-RU')],
+                        ['Валюта', dp.currency],
+                      ].map(([label, value]) => (
+                        <div key={label} className="bg-[#F8F8F7] border border-gray-100 rounded-sm p-3">
+                          <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold block">{label}</span>
+                          <span className="text-sm font-bold text-gray-900 mt-0.5 block">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">
+                        <span>Продано долей</span>
+                        <span className="text-gray-700">{soldPct.toFixed(2)}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#A38D6D]" style={{ width: `${Math.min(100, soldPct)}%` }} />
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Investor's own holding */}
+                  {invested && (
+                    <section className="space-y-3">
+                      <h4 className="font-serif text-base font-bold text-gray-900">Ваша доля</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          ['Куплено токенов', (dp.tokensOwned || 0).toLocaleString('ru-RU')],
+                          ['Инвестировано', formatVal(dp.totalInvested, dp.currency)],
+                          ['Доля', `${dp.ownershipPercentage.toFixed(2)}%`],
+                        ].map(([label, value]) => (
+                          <div key={label} className="bg-[#FAF8F3] border border-[#A38D6D]/20 rounded-sm p-3">
+                            <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold block">{label}</span>
+                            <span className="text-sm font-bold text-gray-900 mt-0.5 block">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Characteristics */}
+                  {specs.length > 0 && (
+                    <section className="space-y-3">
+                      <h4 className="font-serif text-base font-bold text-gray-900">Характеристики объекта</h4>
+                      <dl className="divide-y divide-gray-100 border-y border-gray-100">
+                        {specs.map(([label, value]) => (
+                          <div key={label} className="flex items-start justify-between gap-4 py-2.5">
+                            <dt className="text-[10px] uppercase tracking-wider font-bold text-gray-400 flex items-center gap-1.5 shrink-0">
+                              {label === 'Тип недвижимости' && <Building2 size={12} className="text-[#A38D6D]" />}
+                              {label === 'Этажей' && <Layers size={12} className="text-[#A38D6D]" />}
+                              {label === 'Год постройки' && <CalendarDays size={12} className="text-[#A38D6D]" />}
+                              {label}
+                            </dt>
+                            <dd className="text-xs text-gray-800 text-right">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  )}
+
+                  {/* Documents */}
+                  {dp.documents?.length > 0 && (
+                    <section className="space-y-3">
+                      <h4 className="font-serif text-base font-bold text-gray-900">Документы</h4>
+                      <ul className="space-y-2">
+                        {dp.documents.map((doc) => (
+                          <li key={doc.id}>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between gap-3 p-3 border border-gray-100 rounded-sm hover:bg-[#FAF8F3] transition-colors group"
+                            >
+                              <span className="flex items-center gap-2 min-w-0">
+                                <FileText size={14} className="text-[#A38D6D] shrink-0" />
+                                <span className="text-xs text-gray-800 truncate">{doc.fileName || 'Документ'}</span>
+                              </span>
+                              <ExternalLink size={13} className="text-gray-400 group-hover:text-[#A38D6D] shrink-0" />
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                </div>
+
+                {/* Sticky CTA */}
+                <div className="shrink-0 border-t border-gray-100 p-4 flex gap-3">
+                  {canBuy && (
+                    <button
+                      onClick={() => { const p = dp; setDetailProperty(null); handleOpenAction(p, 'buy'); }}
+                      className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer bg-[#111111] hover:bg-[#A38D6D] text-white py-3 rounded-md text-[9px] uppercase tracking-widest transition-all font-semibold"
+                    >
+                      <Plus size={12} /> <span>Купить</span>
+                    </button>
+                  )}
+                  {invested && (
+                    <button
+                      onClick={() => { const p = dp; setDetailProperty(null); handleOpenAction(p, 'sell'); }}
+                      className={`${canBuy ? 'flex-1' : 'w-full'} flex items-center justify-center cursor-pointer border border-[#A38D6D] text-[#A38D6D] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 py-3 rounded-md text-[9px] uppercase tracking-widest transition-all font-semibold bg-white`}
+                    >
+                      Продать
+                    </button>
+                  )}
+                  {!canBuy && !invested && (
+                    <button disabled className="w-full bg-gray-50 border border-gray-100 text-gray-400 py-3 rounded-md text-[10px] uppercase font-bold tracking-widest">
+                      Распродано
+                    </button>
+                  )}
+                </div>
+              </motion.aside>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
     </div>

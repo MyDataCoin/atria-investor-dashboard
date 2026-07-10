@@ -80,12 +80,23 @@ export function mapPropertyDto(dto) {
     totalInvested: 0,
     tokensOwned: 0,
 
-    // PRESENTATIONAL placeholders.
-    image: pickImage(dto.id),
-    city: '—',
-    country: '—',
-    type: 'Токенизированный актив',
-    completionYear: new Date().getFullYear(),
+    // Real object details from the backend catalogue.
+    image: dto.images?.[0]?.url || pickImage(dto.id),
+    images: (dto.images ?? []).map((im) => im.url).filter(Boolean),
+    documents: (dto.documents ?? []).map((d) => ({
+      id: d.id, url: d.url, fileName: d.fileName, contentType: d.contentType,
+    })),
+    address: dto.address ?? null,
+    city: dto.city ?? null,
+    country: null, // backend has no separate country field; address carries it
+    propertyType: dto.propertyType ?? null,
+    type: dto.propertyType || 'Токенизированный актив',
+    completionYear: dto.yearBuilt ?? null,
+    developer: dto.developer ?? null,
+    floors: dto.floors ?? null,
+    salesPaused: !!dto.salesPaused,
+
+    // Not exposed by the catalogue yet.
     monthlyYield: 0,
     roi: 0,
     tokenAddress: shortAddress(dto.id),
