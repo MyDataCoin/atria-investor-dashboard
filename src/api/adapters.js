@@ -29,11 +29,28 @@ function shortAddress(id = '') {
   return `0xAtria...${tail}`;
 }
 
+// Backend property lifecycle -> the UI status token PropertiesList renders.
+//   draft     -> pending  ("Ожидается", not yet published)
+//   open      -> active   ("Активен", can buy more / sell)
+//   completed -> exited   ("Продан", offering closed)
+const PROPERTY_STATUS = { draft: 'pending', open: 'active', completed: 'exited' };
+
+/**
+ * Derive the card status. Prefers the new `status` enum; falls back to the old
+ * `isActive` bool for backwards compatibility with an un-migrated backend.
+ */
+function mapPropertyStatus(dto) {
+  if (dto.status != null) {
+    return PROPERTY_STATUS[String(dto.status).toLowerCase()] ?? 'active';
+  }
+  return dto.isActive ? 'active' : 'exited';
+}
+
 /**
  * Map an API PropertyDto to the property card shape used by PropertiesList.
  *
  * Backend-fed:        id, name, description, tokenPrice, currency, totalTokens,
- *                     availableTokens, status (from isActive).
+ *                     availableTokens, status (draft/open/completed).
  * Derived:            currentValuation = totalTokens * tokenPrice.
  * PER-INVESTOR (0 until Investments are wired): ownershipPercentage,
  *                     totalInvested, tokensOwned.
@@ -56,7 +73,7 @@ export function mapPropertyDto(dto) {
 
     // Total property value, not the investor's stake.
     currentValuation: totalTokens * tokenPrice,
-    status: dto.isActive ? 'active' : 'exited',
+    status: mapPropertyStatus(dto),
 
     // PER-INVESTOR — filled from /investments/me later.
     ownershipPercentage: 0,
