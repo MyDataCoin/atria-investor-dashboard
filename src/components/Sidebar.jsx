@@ -7,6 +7,7 @@ import {
   Settings,
   FileText,
   LifeBuoy,
+  Newspaper,
   X,
   Award,
   ArrowLeft
@@ -21,6 +22,7 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
     { id: 'properties', label: 'Активы', icon: Building },
     { id: 'activity', label: 'История операций', icon: Activity },
     { id: 'analytics', label: 'Аналитика и тренды', icon: LineChart },
+    { id: 'news', label: 'Новости и отчёты', icon: Newspaper },
     { id: 'taxdoc', label: 'Налоговый документ', icon: FileText },
     { id: 'support', label: 'Поддержка', icon: LifeBuoy },
     { id: 'settings', label: 'Настройки', icon: Settings },

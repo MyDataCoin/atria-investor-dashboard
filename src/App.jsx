@@ -7,6 +7,7 @@ import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
 import TaxDocPanel from './components/TaxDocPanel';
 import HelpDesk from './components/HelpDesk';
+import NewsPanel from './components/NewsPanel';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
@@ -276,6 +277,10 @@ export default function App() {
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':
         return <AnalyticsDash currency={currency} allocation={assetAllocation} />;
+      case 'news':
+        // Shared showcase: every published post is visible to all investors, not
+        // filtered by portfolio. The property list only drives the scope filter.
+        return <NewsPanel properties={properties} />;
       case 'taxdoc':
         return (
           <TaxDocPanel
