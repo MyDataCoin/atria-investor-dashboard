@@ -14,10 +14,12 @@ import SettingsPanel from './components/SettingsPanel';
 import { fetchProperties } from './api/properties';
 import { fetchPortfolio } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
+import { fetchTickets } from './api/tickets';
 import {
   applyInvestmentsToProperties,
   derivePortfolioStats,
   buildActivitiesFromInvestments,
+  buildActivitiesFromTickets,
   buildAssetAllocation,
 } from './api/adapters';
 
@@ -63,7 +65,21 @@ export default function App() {
 
         setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
         setStats(derivePortfolioStats(portfolio));
-        setActivities(buildActivitiesFromInvestments(portfolio.investments, catalogue));
+
+        const investmentActs = buildActivitiesFromInvestments(portfolio.investments, catalogue);
+
+        // Fold support-ticket events (ticket created / support replied) into the
+        // same chronicle. Non-fatal — the timeline still renders without them.
+        let ticketActs = [];
+        try {
+          ticketActs = buildActivitiesFromTickets(await fetchTickets({ signal }));
+        } catch (ticketErr) {
+          if (ticketErr?.name === 'AbortError') throw ticketErr;
+        }
+
+        setActivities(
+          [...investmentActs, ...ticketActs].sort((a, b) => b.timestamp - a.timestamp)
+        );
 
         // Pull the investor's name from KYC. Non-fatal: keeps the neutral
         // fallback if unauthenticated, no KYC profile, or the field is absent.
@@ -150,6 +166,8 @@ export default function App() {
           ...prop,
           ownershipPercentage: remainingPercentage,
           totalInvested: remainingInvested,
+          // Investor fully exited this object — mark it as "Продан".
+          soldOut: remainingTokens === 0,
           tokensOwned: remainingTokens
         };
       }

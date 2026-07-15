@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, ArrowDownLeft, CheckCircle2, Clock } from 'lucide-react';
+import { ShoppingBag, ArrowDownLeft, CheckCircle2, Clock, LifeBuoy, MessageSquare } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatVal } from '../utils';
 
@@ -13,6 +13,8 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
     // 'tx' is not an activity type but a cross-cutting view: anything that
     // carries an on-chain transaction hash.
     if (filterType === 'tx') return Boolean(act.txHash);
+    // 'support' groups both ticket creation and support replies.
+    if (filterType === 'support') return act.type === 'ticket' || act.type === 'ticket-reply';
     return act.type === filterType;
   });
 
@@ -22,6 +24,10 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
         return { icon: ShoppingBag, bg: 'bg-[#A38D6D]/10 border-[#A38D6D]/20 text-[#A38D6D]' };
       case 'payout':
         return { icon: ArrowDownLeft, bg: 'bg-emerald-50 border-emerald-150 text-emerald-600' };
+      case 'ticket':
+        return { icon: LifeBuoy, bg: 'bg-sky-50 border-sky-150 text-sky-600' };
+      case 'ticket-reply':
+        return { icon: MessageSquare, bg: 'bg-indigo-50 border-indigo-150 text-indigo-600' };
       default:
         return { icon: Clock, bg: 'bg-gray-50 border-gray-200 text-gray-500' };
     }
@@ -31,6 +37,7 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
     { label: 'Все хроники', value: 'all' },
     { label: 'Выплаты', value: 'payout' },
     { label: 'Покупка долей', value: 'purchase' },
+    { label: 'Обращения', value: 'support' },
     { label: 'Транзакции', value: 'tx' }
   ];
 

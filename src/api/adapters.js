@@ -254,3 +254,53 @@ export function buildActivitiesFromInvestments(investments, properties) {
     })
     .sort((a, b) => b.timestamp - a.timestamp);
 }
+
+function fmtActivityDate(timestamp) {
+  return timestamp.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Build support-related timeline entries from the investor's tickets:
+ *  - one `ticket` entry when a ticket is created (its first investor message),
+ *  - one `ticket-reply` entry for every reply from support/admin.
+ * Newest first. Works with both backend and localStorage ticket shapes.
+ */
+export function buildActivitiesFromTickets(tickets) {
+  const acts = [];
+
+  for (const t of tickets ?? []) {
+    const messages = t.messages ?? [];
+
+    const created = messages[0]?.createdAtUtc ?? t.createdAtUtc;
+    if (created) {
+      const timestamp = new Date(created);
+      acts.push({
+        id: `ticket-${t.id}`,
+        type: 'ticket',
+        title: `Создано обращение: «${t.subject}»`,
+        date: fmtActivityDate(timestamp),
+        timestamp,
+        status: 'completed',
+      });
+    }
+
+    for (const m of messages) {
+      if (m.author !== 'support') continue;
+      const timestamp = new Date(m.createdAtUtc);
+      acts.push({
+        id: `ticket-reply-${m.id}`,
+        type: 'ticket-reply',
+        title: `Ответ поддержки по обращению «${t.subject}»`,
+        date: fmtActivityDate(timestamp),
+        timestamp,
+        status: 'completed',
+      });
+    }
+  }
+
+  return acts.sort((a, b) => b.timestamp - a.timestamp);
+}

@@ -75,17 +75,29 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                 />
                 
-                {/* Status tag badge */}
-                <span className={`absolute top-4 left-4 px-3 py-1 font-sans text-[8px] uppercase tracking-widest rounded-md backdrop-blur-md border shadow-xs
-                  ${prop.status === 'active' 
-                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold' 
-                    : prop.status === 'pending' 
-                    ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold' 
-                    : 'bg-gray-500/10 text-gray-500 border-gray-250/20 font-semibold'
-                  }
-                `}>
-                  {prop.status === 'active' ? 'Активен' : prop.status === 'pending' ? 'Ожидается' : 'Продан'}
-                </span>
+                {/* Status tag badge.
+                    "Продан" = the investor sold all their own tokens of this object.
+                    Otherwise the object's own status drives the label:
+                    active → Активен на сайте, pending → Ожидается, completed → Распродан на сайте. */}
+                {(() => {
+                  // The investor fully exited this object (flagged on full sell).
+                  const soldOut = prop.soldOut === true && prop.tokensOwned === 0;
+                  const label = soldOut
+                    ? 'Продан'
+                    : prop.status === 'active' ? 'Активен на сайте'
+                    : prop.status === 'pending' ? 'Ожидается'
+                    : 'Распродан на сайте';
+                  const cls = soldOut
+                    ? 'bg-rose-600 text-white border-rose-700/40'
+                    : prop.status === 'active' ? 'bg-emerald-600 text-white border-emerald-700/40'
+                    : prop.status === 'pending' ? 'bg-amber-500 text-white border-amber-600/40'
+                    : 'bg-gray-800 text-white border-black/30';
+                  return (
+                    <span className={`absolute top-4 left-4 px-2.5 py-1 font-sans text-[9px] font-bold uppercase tracking-widest rounded-md border shadow-md ${cls}`}>
+                      {label}
+                    </span>
+                  );
+                })()}
 
                 {/* Ownership Percentage Badge */}
                 {isInvested && (
