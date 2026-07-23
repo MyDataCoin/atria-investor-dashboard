@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Plus, Shield, CheckCircle, X, Building2, Layers, CalendarDays, FileText, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { formatVal } from '../utils';
+import { formatVal, safeUrl } from '../utils';
 
 export default function PropertiesList({ properties, onInvest, onSell, currency = 'USD' }) {
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -515,7 +515,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         {dp.documents.map((doc) => (
                           <li key={doc.id}>
                             <a
-                              href={doc.url}
+                              href={safeUrl(doc.url)}
                               target="_blank"
                               rel="noreferrer"
                               className="flex items-center justify-between gap-3 p-3 border border-gray-100 rounded-sm hover:bg-[#FAF8F3] transition-colors group"
