@@ -7,6 +7,7 @@ import ApplicationsPanel from './components/ApplicationsPanel';
 import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
 import TaxDocPanel from './components/TaxDocPanel';
+import PayoutsPanel from './components/PayoutsPanel';
 import HelpDesk from './components/HelpDesk';
 import NewsPanel from './components/NewsPanel';
 import SettingsPanel from './components/SettingsPanel';
@@ -297,6 +298,10 @@ export default function App() {
         // only carries what is already held, and a reservation changes hands
         // while the dashboard is open.
         return <ApplicationsPanel properties={properties} currency={currency} />;
+      case 'payouts':
+        // Read fresh from /payouts/me: what a holder is owed is decided by distributions the
+        // operator runs, which the portfolio feed knows nothing about.
+        return <PayoutsPanel properties={properties} />;
       case 'activity':
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':

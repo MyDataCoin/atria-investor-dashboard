@@ -6,7 +6,7 @@
  * caller server-side — this module never sees another investor's data.
  */
 import { apiFetch } from './client';
-import { mapInvestmentDto, mapPortfolioDto } from './adapters';
+import { mapInvestmentDto, mapPortfolioDto, mapChainRecordDto } from './adapters';
 
 /** GET /investments/me — every investment owned by the current investor. */
 export async function fetchMyInvestments({ signal } = {}) {
@@ -35,4 +35,17 @@ export async function fetchInvestment(id, { signal } = {}) {
  */
 export async function cancelInvestment(id, { signal } = {}) {
   await apiFetch(`/investments/${id}/cancel`, { method: 'POST', signal });
+}
+
+/**
+ * GET /investments/{id}/chain — the on-chain record of one investment: the
+ * address the shares were issued to, the contract they live in, the issuing
+ * transaction and whether it has settled.
+ *
+ * The point of showing this is that the holder does not have to take the
+ * platform's word for it — every field is a coordinate into public data.
+ */
+export async function fetchInvestmentChainRecord(id, { signal } = {}) {
+  const dto = await apiFetch(`/investments/${id}/chain`, { signal });
+  return mapChainRecordDto(dto);
 }

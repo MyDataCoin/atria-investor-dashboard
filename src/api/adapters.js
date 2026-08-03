@@ -322,3 +322,89 @@ export function buildActivitiesFromTickets(tickets) {
 
   return acts.sort((a, b) => b.timestamp - a.timestamp);
 }
+
+// Backend OnChainStatus -> the tokens the UI branches on. `none` is a real
+// answer, not a missing one: it means the shares have not been written to the
+// chain yet, which is what an approved-but-unminted allocation looks like.
+const ON_CHAIN_STATUS = {
+  None: 'none',
+  Pending: 'pending',
+  Confirmed: 'confirmed',
+  Failed: 'failed',
+};
+
+/** What each on-chain state means for the holder, in their words. */
+export const ON_CHAIN_STATUS_LABELS = {
+  none: 'Не выпущено в сети',
+  pending: 'Ожидает подтверждения',
+  confirmed: 'Подтверждено в сети',
+  failed: 'Ошибка выпуска',
+  unknown: 'Неизвестно',
+};
+
+/**
+ * Map an API InvestmentChainRecordDto to the shape the chain panel consumes.
+ *
+ * Everything here is backend-fed, including the explorer links: which explorer
+ * serves a network is configured next to that network's RPC endpoint, so the
+ * dashboard never composes those URLs itself and cannot keep pointing at the
+ * testnet explorer after an issue moves to mainnet.
+ */
+export function mapChainRecordDto(dto) {
+  return {
+    investmentId: dto.investmentId,
+    propertyId: dto.propertyId,
+    tokenCount: Number(dto.tokenCount ?? 0),
+    status: ON_CHAIN_STATUS[dto.status] ?? 'unknown',
+    walletAddress: dto.walletAddress ?? null,
+    tokenContractAddress: dto.tokenContractAddress ?? null,
+    transactionHash: dto.transactionHash ?? null,
+    chainTag: dto.chainTag ?? null,
+    chainId: dto.chainId ?? null,
+    confirmationsRequired: Number(dto.confirmationsRequired ?? 0),
+    transactionUrl: dto.transactionUrl ?? null,
+    walletUrl: dto.walletUrl ?? null,
+    contractUrl: dto.contractUrl ?? null,
+  };
+}
+
+// Backend PayoutItemStatus -> the tokens the UI branches on.
+const PAYOUT_STATUS = {
+  Pending: 'pending',
+  Paid: 'paid',
+  Failed: 'failed',
+};
+
+/** What each payout state means to the holder. */
+export const PAYOUT_STATUS_LABELS = {
+  pending: 'Ожидает перечисления',
+  paid: 'Выплачено',
+  failed: 'Не доставлено',
+  unknown: 'Неизвестно',
+};
+
+/** Кind and method, in the holder's words. */
+export const PAYOUT_KIND_LABELS = { Dividend: 'Доход', CapitalReturn: 'Возврат капитала' };
+export const PAYOUT_METHOD_LABELS = { BankTransfer: 'Банковский перевод', Wallet: 'На кошелёк' };
+
+/**
+ * Map an API MyPayoutDto to the shape the payouts panel consumes.
+ *
+ * The amount is backend-computed against the frozen register: the dashboard must never divide a
+ * declared total itself, or the holder would see a number the payment does not follow.
+ */
+export function mapMyPayoutDto(dto) {
+  return {
+    runId: dto.runId,
+    propertyId: dto.propertyId,
+    kind: dto.kind ?? null,
+    method: dto.method ?? null,
+    snapshotAtUtc: dto.snapshotAtUtc ?? null,
+    tokenCount: Number(dto.tokenCount ?? 0),
+    amount: Number(dto.amount ?? 0),
+    currency: dto.currency ?? 'KGS',
+    status: PAYOUT_STATUS[dto.status] ?? 'unknown',
+    settlementReference: dto.settlementReference ?? null,
+    paidAtUtc: dto.paidAtUtc ?? null,
+  };
+}

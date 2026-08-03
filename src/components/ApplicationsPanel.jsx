@@ -3,6 +3,7 @@ import { Loader2, AlertTriangle, Clock, XCircle, CheckCircle2, Ban, Hourglass } 
 import { fetchMyInvestments, cancelInvestment } from '../api/investments';
 import { INVESTMENT_STATUS_LABELS } from '../api/adapters';
 import { formatVal } from '../utils';
+import ChainRecord from './ChainRecord';
 
 // One visual treatment per application state. There is no payment step: an
 // application is reserved, then an operator approves or rejects it, the investor
@@ -183,6 +184,11 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
                   </div>
                 )}
               </dl>
+
+              {/* Only an approved application has shares to look for on chain. A
+                  reserved one has nothing written yet, and a rejected or lapsed
+                  one never will have. */}
+              {app.status === 'active' && <ChainRecord investmentId={app.id} />}
 
               {app.status === 'rejected' && (
                 <p className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700">
