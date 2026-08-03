@@ -47,13 +47,15 @@ async function parseBody(res) {
  * Perform a request against `/api/v1{path}`.
  *
  * @param {string} path   e.g. '/properties' or `/properties/${id}`
- * @param {object} [opts] { method, body, headers, auth, signal }
+ * @param {object} [opts] { method, body, headers, auth, signal, raw }
  *                        - body: plain object → JSON; FormData → sent as-is.
  *                        - auth: false to skip the bearer token (public routes).
- * @returns parsed JSON, or null for 204 No Content.
+ *                        - raw: true to get the Response back (file downloads, where the caller
+ *                          reads a blob; an <a href> would drop the bearer token).
+ * @returns parsed JSON, null for 204 No Content, or the Response when `raw`.
  */
 export async function apiFetch(path, opts = {}) {
-  const { method = 'GET', body, headers = {}, auth = true, signal } = opts;
+  const { method = 'GET', body, headers = {}, auth = true, signal, raw = false } = opts;
 
   const finalHeaders = { Accept: 'application/json', ...headers };
   let finalBody = body;
@@ -79,6 +81,17 @@ export async function apiFetch(path, opts = {}) {
   } catch (networkErr) {
     if (networkErr?.name === 'AbortError') throw networkErr;
     throw new ApiError('Не удалось связаться с сервером Atria.', { status: 0 });
+  }
+
+  if (raw) {
+    if (!res.ok) {
+      const problem = await parseBody(res);
+      throw new ApiError(
+        problem?.detail || problem?.title || `Ошибка запроса (${res.status})`,
+        { status: res.status, problem: typeof problem === 'object' ? problem : null }
+      );
+    }
+    return res;
   }
 
   if (res.status === 204) return null;

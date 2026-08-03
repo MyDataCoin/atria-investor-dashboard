@@ -307,12 +307,9 @@ export default function App() {
         return <NewsPanel properties={properties} />;
       case 'taxdoc':
         return (
-          <TaxDocPanel
-            investorName={investorName}
-            properties={ownedProperties}
-            totalInvested={stats?.totalInvested ?? 0}
-            currency={currency}
-          />
+          // The statement is built server-side from the registry, so the panel needs no portfolio
+          // props — only the name to show and the currency to format with.
+          <TaxDocPanel investorName={investorName} currency={currency} />
         );
       case 'support':
         return <HelpDesk />;
