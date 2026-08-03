@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Overview from './components/Overview';
 import PropertiesList from './components/PropertiesList';
+import ApplicationsPanel from './components/ApplicationsPanel';
 import ActivitiesTimeline from './components/ActivitiesTimeline';
 import AnalyticsDash from './components/AnalyticsDash';
 import TaxDocPanel from './components/TaxDocPanel';
@@ -291,6 +292,11 @@ export default function App() {
         return ownedProperties.length === 0
           ? emptyHoldings
           : <PropertiesList properties={ownedProperties} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />;
+      case 'applications':
+        // Applications are read fresh from /investments/me: the portfolio feed
+        // only carries what is already held, and a reservation changes hands
+        // while the dashboard is open.
+        return <ApplicationsPanel properties={properties} currency={currency} />;
       case 'activity':
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':

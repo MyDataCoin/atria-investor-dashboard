@@ -103,27 +103,47 @@ export function mapPropertyDto(dto) {
   };
 }
 
-// Backend InvestmentStatus -> the lowercase status tokens the UI uses.
+// Backend InvestmentStatus -> the lowercase status tokens the UI uses. All five
+// backend states are covered; there is no payment on the platform, so nothing
+// maps to a "pending payment" any more.
 const INVESTMENT_STATUS = {
-  PendingPayment: 'pending',
+  Reserved: 'reserved',
   Active: 'active',
-  Failed: 'failed',
+  Rejected: 'rejected',
   Cancelled: 'cancelled',
+  Expired: 'expired',
+};
+
+/** Human-readable labels for the five application states. */
+export const INVESTMENT_STATUS_LABELS = {
+  reserved: 'Резерв',
+  active: 'Активна',
+  rejected: 'Отклонена',
+  cancelled: 'Отменена',
+  expired: 'Истекла',
+  unknown: 'Неизвестно',
 };
 
 /**
  * Map an API InvestmentDto to the shape the dashboard consumes.
  *
- * Backend-fed: id, propertyId, amount, currency, createdAtUtc.
- * Derived:     status (lowercase UI token, `pending` when unknown).
+ * Backend-fed: id, propertyId, tokenCount, amount, currency, createdAtUtc,
+ *              reservedUntilUtc, rejectionReason.
+ * Derived:     status (lowercase UI token).
+ *
+ * An unrecognised status becomes `unknown`, never a waiting state: the previous
+ * default made a rejected application look as though it were still pending.
  */
 export function mapInvestmentDto(dto) {
   return {
     id: dto.id,
     propertyId: dto.propertyId,
+    tokenCount: Number(dto.tokenCount ?? 0),
     amount: Number(dto.amount ?? 0),
     currency: dto.currency ?? 'USD',
-    status: INVESTMENT_STATUS[dto.status] ?? 'pending',
+    status: INVESTMENT_STATUS[dto.status] ?? 'unknown',
+    reservedUntilUtc: dto.reservedUntilUtc ?? null,
+    rejectionReason: dto.rejectionReason ?? null,
     createdAtUtc: dto.createdAtUtc ?? null,
   };
 }
@@ -142,19 +162,9 @@ export function mapPortfolioDto(dto) {
 }
 
 /**
- * Map an API PaymentSessionDto to what the client needs to redirect the payer.
- */
-export function mapPaymentSessionDto(dto) {
-  return {
-    sessionId: dto?.sessionId ?? null,
-    paymentUrl: dto?.paymentUrl ?? null,
-  };
-}
-
-/**
  * Merge the investor's holdings into the public property catalogue.
  *
- * Only `active` investments (confirmed payment) count as holdings. For each
+ * Only `active` investments (approved by an operator) count as holdings. For each
  * property we sum the invested amount and derive tokensOwned / ownership from
  * the property's own tokenPrice and totalTokens. Properties the investor has no
  * active stake in keep the zero per-investor fields set by `mapPropertyDto`.
@@ -226,9 +236,20 @@ export function buildAssetAllocation(properties) {
   }));
 }
 
+// How each application state reads in the chronicle. A rejected or lapsed
+// application is not a completed purchase and must not be shown as one.
+const ACTIVITY_BY_STATUS = {
+  reserved: { title: 'Заявка в резерве', status: 'pending' },
+  active: { title: 'Инвестиция', status: 'completed' },
+  rejected: { title: 'Заявка отклонена', status: 'failed' },
+  cancelled: { title: 'Заявка отменена', status: 'failed' },
+  expired: { title: 'Резерв по заявке истёк', status: 'failed' },
+  unknown: { title: 'Заявка', status: 'pending' },
+};
+
 /**
- * Build the activity timeline from real investments (one `purchase` entry each),
- * newest first. Property names are resolved from the catalogue when available.
+ * Build the activity timeline from real investments (one entry each), newest
+ * first. Property names are resolved from the catalogue when available.
  */
 export function buildActivitiesFromInvestments(investments, properties) {
   const nameById = new Map((properties ?? []).map((p) => [p.id, p.name]));
@@ -237,19 +258,16 @@ export function buildActivitiesFromInvestments(investments, properties) {
     .map((inv) => {
       const timestamp = inv.createdAtUtc ? new Date(inv.createdAtUtc) : new Date();
       const propertyName = nameById.get(inv.propertyId) ?? 'Объект недвижимости';
+      const shape = ACTIVITY_BY_STATUS[inv.status] ?? ACTIVITY_BY_STATUS.unknown;
       return {
         id: `inv-${inv.id}`,
-        type: 'purchase',
-        title: `Инвестиция в «${propertyName}»`,
+        type: inv.status === 'active' ? 'purchase' : 'application',
+        title: `${shape.title}: «${propertyName}»`,
         propertyName,
         amount: inv.amount,
-        date: timestamp.toLocaleDateString('ru-RU', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        }),
+        date: fmtActivityDate(timestamp),
         timestamp,
-        status: 'completed',
+        status: shape.status,
       };
     })
     .sort((a, b) => b.timestamp - a.timestamp);

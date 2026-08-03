@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Building,
+  ClipboardList,
   Activity,
   LineChart,
   Settings,
@@ -20,6 +21,7 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
   const menuItems = [
     { id: 'dashboard', label: 'Панель управления', icon: LayoutDashboard },
     { id: 'properties', label: 'Активы', icon: Building },
+    { id: 'applications', label: 'Мои заявки', icon: ClipboardList },
     { id: 'activity', label: 'История операций', icon: Activity },
     { id: 'analytics', label: 'Аналитика и тренды', icon: LineChart },
     { id: 'news', label: 'Новости и отчёты', icon: Newspaper },

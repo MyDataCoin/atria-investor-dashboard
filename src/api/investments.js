@@ -6,7 +6,7 @@
  * caller server-side — this module never sees another investor's data.
  */
 import { apiFetch } from './client';
-import { mapInvestmentDto, mapPortfolioDto, mapPaymentSessionDto } from './adapters';
+import { mapInvestmentDto, mapPortfolioDto } from './adapters';
 
 /** GET /investments/me — every investment owned by the current investor. */
 export async function fetchMyInvestments({ signal } = {}) {
@@ -27,18 +27,12 @@ export async function fetchInvestment(id, { signal } = {}) {
 }
 
 /**
- * POST /investments/{applicationId}/payments — start a hosted payment session
- * for the investment of an approved application.
+ * POST /investments/{id}/cancel — withdraw an application while it is still
+ * Reserved. The reserved tokens go back to the property's pool.
  *
- * @param {string} applicationId  id of the approved application being paid for.
- * @param {'Stripe'|'BankTransfer'} provider  payment strategy, sent by name.
- * @returns {Promise<{sessionId: string|null, paymentUrl: string|null}>}
+ * There is no payment on the platform: an application is reserved, then an
+ * operator approves or rejects it, or it lapses when the reservation expires.
  */
-export async function createPayment(applicationId, provider, { signal } = {}) {
-  const dto = await apiFetch(`/investments/${applicationId}/payments`, {
-    method: 'POST',
-    body: { provider },
-    signal,
-  });
-  return mapPaymentSessionDto(dto);
+export async function cancelInvestment(id, { signal } = {}) {
+  await apiFetch(`/investments/${id}/cancel`, { method: 'POST', signal });
 }
