@@ -166,7 +166,7 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
                   <dt className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Долей</dt>
-                  <dd className="font-mono text-gray-900">{app.tokenCount.toLocaleString('ru-RU')}</dd>
+                  <dd className="font-mono text-gray-900">{app.tokenCount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}</dd>
                 </div>
                 <div>
                   <dt className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Сумма</dt>

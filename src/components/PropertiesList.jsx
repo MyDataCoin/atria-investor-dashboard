@@ -310,7 +310,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         ) : (
                           <>
                             <span>1 токен ({formatVal(selectedProperty.tokenPrice, currency)})</span>
-                            <span>{selectedProperty.tokensOwned?.toLocaleString() || 0} токенов ({formatVal((selectedProperty.tokensOwned || 0) * selectedProperty.tokenPrice, currency)})</span>
+                            <span>{selectedProperty.tokensOwned?.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) || 0} токенов ({formatVal((selectedProperty.tokensOwned || 0) * selectedProperty.tokenPrice, currency)})</span>
                           </>
                         )}
                       </div>

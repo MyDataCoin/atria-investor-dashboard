@@ -186,7 +186,14 @@ export function applyInvestmentsToProperties(properties, investments) {
     const invested = investedByProperty.get(prop.id);
     if (!invested) return prop;
 
-    const tokensOwned = prop.tokenPrice > 0 ? Math.round(invested / prop.tokenPrice) : 0;
+    // Доли делимы до 0.01, поэтому Math.round схлопнул бы дробное владение (0,05 доли — в ноль,
+    // 55,55 — в 56). Отсекаем вниз ровно до масштаба доли, как TokenAmount.Floor на бэкенде.
+    // Round перед floor обязателен: в двоичной арифметике 0.29 * 100 = 28.999999999999996, и
+    // голый Math.floor занизил бы владение на сотую.
+    const tokensOwned =
+      prop.tokenPrice > 0
+        ? Math.floor(Math.round((invested / prop.tokenPrice) * 100 * 1e6) / 1e6) / 100
+        : 0;
     const ownershipPercentage =
       prop.totalTokens > 0 ? (tokensOwned / prop.totalTokens) * 100 : 0;
 
