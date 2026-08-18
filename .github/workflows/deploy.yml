@@ -33,7 +33,11 @@ jobs:
         # here (not on the server). It is exposed to the browser anyway, so it is a plain
         # value, not a secret — change it here if the backend URL changes.
         env:
-          VITE_API_BASE_URL: https://atria-api.eaysdev.online
+          # The SAME API host the public site and the admin dashboard use. Pointing this anywhere
+          # else does not merely change a URL: the refresh cookie that carries the session is issued
+          # for .atria.kg, so a request to another host arrives without it and the dashboard meets a
+          # signed-in investor as a stranger.
+          VITE_API_BASE_URL: https://api.atria.kg
         run: npm run build
 
       - name: Upload built bundle
