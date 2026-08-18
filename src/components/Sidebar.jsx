@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 // Where the "back to home" button points (main Atria site).
-const HOME_URL = 'https://atria-pearl.vercel.app/';
+const HOME_URL = 'https://atria.kg/';
 
 export default function Sidebar({ currentSection, onSectionChange, isOpen, onClose }) {
   const menuItems = [
