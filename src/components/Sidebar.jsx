@@ -12,13 +12,30 @@ import {
   Coins,
   X,
   Award,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from 'lucide-react';
+import { signOut } from '../api/client';
 
-// Where the "back to home" button points (main Atria site).
-const HOME_URL = 'https://atria.kg/';
+// Where the "back to home" and the post-sign-out redirect point (main Atria site). Configurable so a
+// stand can send people back to its own front instead of production.
+const HOME_URL = (import.meta.env.VITE_SITE_URL || 'https://atria.kg').replace(/\/?$/, '/');
 
 export default function Sidebar({ currentSection, onSectionChange, isOpen, onClose }) {
+  const [signingOut, setSigningOut] = React.useState(false);
+
+  /**
+   * Выход: сначала гасим сессию на сервере (иначе refresh-кука пережила бы «выход» и следующий
+   * заход молча вернул бы человека в аккаунт), потом уходим на главный сайт. Переход делаем через
+   * replace, чтобы «назад» не возвращал в кабинет, из которого только что вышли.
+   */
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    await signOut();
+    window.location.replace(HOME_URL);
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Панель управления', icon: LayoutDashboard },
     { id: 'properties', label: 'Активы', icon: Building },
@@ -134,6 +151,19 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
             <ArrowLeft size={14} className="text-[#A38D6D] transition-transform group-hover:-translate-x-0.5" />
             <span>На главную</span>
           </a>
+
+          {/* Выход из аккаунта. Отдельной кнопкой под «На главную»: уйти на сайт и выйти из
+              аккаунта — разные действия, и первое сессию не заканчивает. */}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="group mt-3 w-full flex items-center justify-center gap-2 border border-white/10 hover:border-rose-400/60 bg-white/5 hover:bg-rose-500/10 text-white/60 hover:text-white px-4 py-3 rounded-xl text-[10px] uppercase tracking-widest font-bold font-mono transition-all cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+            id="sign-out-btn"
+          >
+            <LogOut size={14} className="text-rose-300 transition-transform group-hover:translate-x-0.5" />
+            <span>{signingOut ? 'Выходим…' : 'Выйти'}</span>
+          </button>
 
           <p className="font-mono text-[9px] text-white/30 mt-4 text-center">
             © 2026 ATRIA

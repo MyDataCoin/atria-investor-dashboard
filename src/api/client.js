@@ -328,3 +328,24 @@ export async function apiFetch(path, opts = {}) {
 
   return payload;
 }
+
+/**
+ * Ends the session: revokes the refresh token server-side, drops the in-memory access token and
+ * tells the other tabs.
+ *
+ * Clearing only this tab's copy would not be a sign-out at all — the refresh cookie is HttpOnly, so
+ * JavaScript cannot delete it, and the very next visit would silently restore the session from it.
+ * The server has to be told, and it is the one that expires the cookie. A network failure still
+ * signs the person out locally: a sign-out that gets stuck because the API is unreachable is worse
+ * than one the server learns about a moment later, when the token expires on its own.
+ */
+export async function signOut() {
+  try {
+    await apiFetch('/auth/logout', { method: 'POST', body: {}, auth: false });
+  } catch {
+    /* сервер недоступен — локальный выход всё равно доводим до конца */
+  }
+
+  clearTokens();
+  authChannel?.postMessage({ type: 'ended' });
+}
