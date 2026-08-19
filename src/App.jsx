@@ -367,15 +367,17 @@ export default function App() {
           ) : (
             renderContent()
           )}
+        </main>
 
-          {/* Persistent global regulator reassurance footer */}
-          <footer className="pt-10 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-gray-450 text-[10px] font-mono text-left">
+        {/* Persistent global regulator reassurance footer, pinned to the bottom of the viewport */}
+        <footer className="mt-auto border-t border-gray-100 px-6 lg:px-10 py-5 bg-[#FDFDFB]">
+          <div className="max-w-7xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-gray-450 text-[10px] font-mono text-left">
             <div className="flex items-center gap-2">
               <Shield size={14} className="text-[#A38D6D]" />
               <span>Институциональная регулируемая песочница реестра активов (v4.22)</span>
             </div>
-          </footer>
-        </main>
+          </div>
+        </footer>
 
       </div>
     </div>

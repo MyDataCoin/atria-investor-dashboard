@@ -84,10 +84,28 @@ const api = {
 
 /* ---------------------------------------------------------------------------
  * Local fallback — browser-only, per-device. Used until the backend is live.
- * These tickets are NOT visible to admins by design (localStorage can't be).
+ * These tickets are NOT visible to admins by design (sessionStorage can't be).
+ *
+ * sessionStorage, not localStorage: a support ticket body is where people write their full
+ * name, phone and payment details, and localStorage kept that on the machine forever — logout
+ * did not clear it, so on a shared computer the next person read the previous one's messages,
+ * and a deletion request could not be honoured for data sitting outside our servers. Tied to
+ * the tab, the copy dies with it; clearSupportTicketCache() drops it on the way out.
  * ------------------------------------------------------------------------- */
 
 const KEY = 'atria_support_tickets';
+const store = globalThis.sessionStorage;
+
+/** Drops the local ticket cache. Call on logout — the session ending must take the data with it. */
+export function clearSupportTicketCache() {
+  try {
+    store?.removeItem(KEY);
+    // Anything a previous build left in localStorage has outlived its session; clear it too.
+    globalThis.localStorage?.removeItem(KEY);
+  } catch {
+    /* storage disabled (private mode / blocked) — nothing to clear */
+  }
+}
 
 function uid() {
   return globalThis.crypto?.randomUUID?.() ?? `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -95,14 +113,18 @@ function uid() {
 
 function read() {
   try {
-    return JSON.parse(localStorage.getItem(KEY)) ?? [];
+    return JSON.parse(store?.getItem(KEY)) ?? [];
   } catch {
     return [];
   }
 }
 
 function write(list) {
-  localStorage.setItem(KEY, JSON.stringify(list));
+  try {
+    store?.setItem(KEY, JSON.stringify(list));
+  } catch {
+    /* storage disabled or full — the fallback is best-effort by nature */
+  }
 }
 
 const local = {
