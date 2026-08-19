@@ -33,7 +33,12 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
     if (signingOut) return;
     setSigningOut(true);
     await signOut();
-    window.location.replace(HOME_URL);
+
+    // ?signed-out=1 — сигнал главному сайту дочистить СВОЮ сторону выхода. Сессию на сервере мы уже
+    // отозвали, но access-токен сайта лежит в его собственном localStorage (другой origin), достать
+    // до которого отсюда нельзя: без этой метки atria.kg ещё до четверти часа показывал бы
+    // «Дашборд» и «Выйти» человеку, который только что вышел. Сайт снимает параметр из адреса сам.
+    window.location.replace(`${HOME_URL}?signed-out=1`);
   };
 
   const menuItems = [
