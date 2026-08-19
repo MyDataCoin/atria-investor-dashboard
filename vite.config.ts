@@ -22,7 +22,7 @@ export default defineConfig(() => {
       // Leave VITE_API_BASE_URL empty in .env.local to route through this.
       proxy: {
         '/api': {
-          target: 'https://atria-api.eaysdev.online',
+          target: 'https://api.atria.kg',
           changeOrigin: true,
           secure: true,
         },

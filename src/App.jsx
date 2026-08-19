@@ -13,6 +13,7 @@ import NewsPanel from './components/NewsPanel';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
+import { restoreSession, onSessionEnded } from './api/client';
 import { fetchProperties } from './api/properties';
 import { fetchPortfolio } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
@@ -26,6 +27,9 @@ import {
 } from './api/adapters';
 
 import { Shield, Loader2, AlertTriangle } from 'lucide-react';
+
+// Where the session is actually created (phone + OTP). Configurable so a stand can point elsewhere.
+const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://atria.kg';
 
 export default function App() {
   const [currentSection, setCurrentSection] = useState('dashboard');
@@ -42,9 +46,39 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
+  // 'checking' → 'authed' | 'anonymous'. The access token lives in memory and this app never shows a
+  // login form: the session is established on the main site and travels here in the HttpOnly refresh
+  // cookie shared across atria.kg. So the FIRST thing to do is ask the server for a token — before
+  // this, someone arriving straight from registration landed on a dashboard whose every authenticated
+  // call went out without a bearer token and quietly returned nothing.
+  const [authState, setAuthState] = useState('checking');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    restoreSession().then((restored) => {
+      if (!cancelled) setAuthState(restored ? 'authed' : 'anonymous');
+    });
+
+    // A session that ends later (refresh refused, or a sign-out in another tab) drops the dashboard
+    // back to the same prompt instead of leaving a signed-in-looking page that 401s on every click.
+    const unsubscribe = onSessionEnded(() => {
+      if (!cancelled) setAuthState('anonymous');
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
   // Load the public catalogue and the investor's portfolio in parallel, then
   // merge the holdings into the catalogue and derive the headline stats.
   useEffect(() => {
+    // Wait for the session check: loading the portfolio without a token would return an empty one and
+    // then be cached in state as "no holdings".
+    if (authState === 'checking') return undefined;
+
     const controller = new AbortController();
     const { signal } = controller;
 
@@ -101,7 +135,7 @@ export default function App() {
 
     load();
     return () => controller.abort();
-  }, []);
+  }, [authState]);
 
   // Core callback: Investing / acquiring additional shares from a property card
   const handleInvestInProperty = (propertyId, quantity, cost) => {
@@ -328,6 +362,37 @@ export default function App() {
         );
     }
   };
+
+  // --- Session gate ---------------------------------------------------------
+  // Rendering the dashboard while the session is still unknown shows empty figures to someone who is
+  // in fact signed in; rendering it with no session at all shows zeros and no way to fix them.
+  if (authState === 'checking') {
+    return (
+      <div className="min-h-screen bg-[#FDFDFB] flex flex-col items-center justify-center gap-3 text-gray-400 font-sans">
+        <Loader2 size={28} className="animate-spin text-[#A38D6D]" />
+        <span className="text-xs uppercase tracking-widest font-bold">Проверяем сессию…</span>
+      </div>
+    );
+  }
+
+  if (authState === 'anonymous') {
+    return (
+      <div className="min-h-screen bg-[#FDFDFB] flex flex-col items-center justify-center gap-4 px-6 text-center font-sans">
+        <Shield size={30} className="text-[#A38D6D]" />
+        <h1 className="font-serif font-bold text-xl text-gray-900">Требуется вход</h1>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Личный кабинет открывается по сессии, которая заводится на сайте Atria — по номеру телефона
+          и коду из СМС.
+        </p>
+        <a
+          href={SITE_URL}
+          className="mt-2 px-5 py-2.5 rounded-full bg-[#A38D6D] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#8f7a5c] transition-colors"
+        >
+          Войти на atria.kg
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFDFB] flex font-sans text-gray-800 paper-grain relative select-none">

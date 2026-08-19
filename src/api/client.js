@@ -7,7 +7,14 @@
  * specifics out of here.
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+// In dev an empty base URL is right: requests go same-origin and the Vite proxy forwards them, so
+// there is no CORS. A production build must NOT fall back to same-origin, though — that only works
+// behind an nginx that proxies /api, and where there is none every call quietly hits the static host
+// and the dashboard looks empty. So the deployed default is the real API, which is also same-site
+// with app.atria.kg and therefore gets the refresh cookie.
+const BASE_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE_URL ?? '')
+  : (import.meta.env.VITE_API_BASE_URL || 'https://api.atria.kg').replace(/\/+$/, '');
 const API_PREFIX = '/api/v1';
 
 /**
@@ -23,48 +30,206 @@ const API_PREFIX = '/api/v1';
  * to the server rather than a read from storage.
  */
 let accessToken = null;
+// UTC ms at which the access token stops being accepted. 0 = no session.
+let accessExpiresAt = 0;
+// Renews the token shortly BEFORE it expires, so ordinary calls stop discovering it as a 401.
+let proactiveTimer = null;
+
+// The access token lives ~15 minutes (Jwt:AccessTokenMinutes). Renewing this far ahead of the
+// deadline keeps a request that is already in flight from arriving with a token that expired on the
+// way, and covers a small clock difference between browser and server.
+const EXPIRY_SKEW_MS = 60_000;
+
+// Listeners told when the session is definitively over — the server refused the refresh token —
+// as opposed to a refresh that merely could not be made right now (network down, API restarting).
+// Only the first is worth sending someone back to the site to sign in for.
+const sessionEndedHandlers = new Set();
+
+/** Subscribe to "the session is over". Returns an unsubscribe function. */
+export function onSessionEnded(handler) {
+  sessionEndedHandlers.add(handler);
+  return () => sessionEndedHandlers.delete(handler);
+}
+
+function notifySessionEnded() {
+  sessionEndedHandlers.forEach((h) => {
+    try {
+      h();
+    } catch {
+      /* one broken listener must not stop the others */
+    }
+  });
+}
+
+// One rotation per browser rather than per tab: the refresh token rotates on every use, so two tabs
+// waking together present the same token twice. The server tolerates that race now, but sharing the
+// result is quieter and faster — a tab that hears a fresh token adopts it instead of asking.
+const authChannel =
+  typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('atria-investor-auth');
+
+if (authChannel) {
+  authChannel.onmessage = (event) => {
+    const msg = event.data;
+    if (!msg) return;
+    if (msg.type === 'tokens' && msg.accessToken && msg.expiresAt > accessExpiresAt) {
+      applyTokens(msg.accessToken, msg.expiresAt);
+    } else if (msg.type === 'ended') {
+      clearTokens();
+      notifySessionEnded();
+    }
+  };
+}
+
+/** Parses the API's expiry (UTC, sometimes without the trailing Z) into epoch ms. */
+function parseExpiry(expiresAtUtc) {
+  if (!expiresAtUtc) return 0;
+  const iso = /([Zz]|[+-]\d{2}:?\d{2})$/.test(expiresAtUtc) ? expiresAtUtc : `${expiresAtUtc}Z`;
+  const at = Date.parse(iso);
+  return Number.isNaN(at) ? 0 : at;
+}
+
+function applyTokens(token, expiresAt) {
+  accessToken = token;
+  accessExpiresAt = expiresAt;
+  scheduleProactiveRefresh();
+}
+
+function clearTokens() {
+  accessToken = null;
+  accessExpiresAt = 0;
+  if (proactiveTimer) clearTimeout(proactiveTimer);
+  proactiveTimer = null;
+}
+
+/**
+ * Renews a minute before expiry instead of waiting for a 401.
+ *
+ * Waiting means that every fifteen minutes the first calls fail and have to be replayed, and any
+ * call that cannot be replayed safely pays for it. A dashboard left open on a second monitor is that
+ * story repeated all day.
+ */
+function scheduleProactiveRefresh() {
+  if (proactiveTimer) clearTimeout(proactiveTimer);
+  proactiveTimer = null;
+  if (!accessToken || !accessExpiresAt) return;
+
+  const delay = Math.max(accessExpiresAt - Date.now() - EXPIRY_SKEW_MS, 5_000);
+  proactiveTimer = setTimeout(() => {
+    restoreSession();
+  }, delay);
+}
 
 export function getAccessToken() {
   return accessToken;
 }
 
 export function setAccessToken(token) {
-  accessToken = token ?? null;
+  if (token) {
+    // No expiry supplied: assume the shortest sensible life so the proactive renewal still happens.
+    applyTokens(token, Date.now() + 10 * 60_000);
+  } else {
+    clearTokens();
+  }
 }
+
+/** Stores a token pair from any auth response and tells the other tabs about it. */
+export function setTokens(tokens) {
+  if (!tokens?.accessToken) return false;
+  applyTokens(tokens.accessToken, parseExpiry(tokens.expiresAtUtc) || Date.now() + 10 * 60_000);
+  authChannel?.postMessage({ type: 'tokens', accessToken, expiresAt: accessExpiresAt });
+  return true;
+}
+
+/** Is there a session, and is its token still comfortably valid? */
+export function isAuthenticated() {
+  return !!accessToken;
+}
+
+function needsRefresh() {
+  return !accessToken || Date.now() + EXPIRY_SKEW_MS >= accessExpiresAt;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A refresh that lands during a deploy or a dropped connection is retried before the session is
+// written off: one failed attempt is not a fair test of whether the session is alive.
+const REFRESH_RETRY_DELAYS_MS = [400, 1200];
 
 /**
  * Exchanges the refresh cookie for a fresh access token. Resolves to true when a session was
- * restored. Concurrent callers share one in-flight request: firing several would rotate the token
- * out from under each other, and the server reads a replayed refresh token as a leak and revokes
- * the whole session.
+ * restored, false when there is none.
+ *
+ * Concurrent callers share one in-flight request: firing several would rotate the token out from
+ * under each other. A refusal (401/403) ends the session and notifies listeners; anything else —
+ * network error, 5xx — leaves the session in place, because it says nothing about it.
  */
 let restoreInFlight = null;
 
+async function doRestore() {
+  let transient = false;
+
+  for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt += 1) {
+    if (attempt > 0) await sleep(REFRESH_RETRY_DELAYS_MS[attempt - 1]);
+
+    let res;
+    try {
+      res = await fetch(`${BASE_URL}${API_PREFIX}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: '{}',
+      });
+    } catch {
+      transient = true;
+      continue;
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      const had = !!accessToken;
+      clearTokens();
+      if (had) {
+        authChannel?.postMessage({ type: 'ended' });
+        notifySessionEnded();
+      }
+      return false;
+    }
+
+    if (!res.ok) {
+      transient = true;
+      continue;
+    }
+
+    const tokens = await res.json().catch(() => null);
+    return setTokens(tokens);
+  }
+
+  // Out of attempts: keep whatever session we have — the next call, or the next visit to the tab,
+  // gets another go.
+  void transient;
+  return !!accessToken;
+}
+
 export function restoreSession() {
   if (!restoreInFlight) {
-    restoreInFlight = fetch(`${BASE_URL}${API_PREFIX}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: '{}',
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          accessToken = null;
-          return false;
-        }
-
-        const tokens = await res.json();
-        accessToken = tokens.accessToken ?? null;
-        return !!accessToken;
-      })
-      .catch(() => false)
-      .finally(() => {
-        restoreInFlight = null;
-      });
+    restoreInFlight = doRestore().finally(() => {
+      restoreInFlight = null;
+    });
   }
 
   return restoreInFlight;
+}
+
+// Coming back to a backgrounded tab is the other moment a session looks broken: browsers throttle
+// timers in inactive tabs, so the proactive renewal may have fired late or not at all.
+if (typeof document !== 'undefined') {
+  const renewIfStale = () => {
+    if (accessToken && needsRefresh()) restoreSession();
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') renewIfStale();
+  });
+  window.addEventListener('online', renewIfStale);
 }
 
 /** Error carrying the parsed ProblemDetails so callers can branch on status. */
@@ -104,6 +269,12 @@ export async function apiFetch(path, opts = {}) {
   if (body != null && !(body instanceof FormData)) {
     finalHeaders['Content-Type'] = 'application/json';
     finalBody = JSON.stringify(body);
+  }
+
+  // Renew BEFORE sending when the token is at (or past) its expiry, so the call carries a token the
+  // server still accepts rather than discovering the problem as a 401 and being replayed.
+  if (auth && !_retried && accessToken && needsRefresh()) {
+    await restoreSession();
   }
 
   if (auth) {

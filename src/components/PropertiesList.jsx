@@ -3,10 +3,26 @@ import { MapPin, Plus, Shield, CheckCircle, X, Building2, Layers, CalendarDays, 
 import { motion, AnimatePresence } from 'motion/react';
 import { formatVal, safeUrl } from '../utils';
 
+/**
+ * Разбор суммы, введённой человеком: «1 200,50», «1200.5», «500 сом» — это одно и то же число.
+ * Пробелы (включая неразрывные из форматирования) убираем, запятую приводим к точке: на русской
+ * раскладке дробную часть отделяют именно запятой.
+ */
+function parseAmount(raw) {
+  const normalized = String(raw ?? '')
+    .replace(/[\s\u00a0\u202f]/g, '')
+    .replace(',', '.')
+    .replace(/[^\d.]/g, '');
+  return normalized === '' ? NaN : Number(normalized);
+}
+
 export default function PropertiesList({ properties, onInvest, onSell, currency = 'USD' }) {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [actionMode, setActionMode] = useState('buy');
   const [tokenQuantity, setTokenQuantity] = useState(100);
+  // Черновик поля «сумма»: пока в него печатают, показываем набранные символы. Иначе «5»
+  // немедленно превратилось бы в отформатированные «5», и дописать до пятисот было бы нельзя.
+  const [amountDraft, setAmountDraft] = useState(null);
   const [transactionSuccess, setTransactionSuccess] = useState(false);
   const [detailProperty, setDetailProperty] = useState(null);
 
@@ -14,11 +30,33 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
     setSelectedProperty(property);
     setActionMode(mode);
     setTokenQuantity(mode === 'buy' ? 100 : (property.tokensOwned || 0));
+    setAmountDraft(null);
     setTransactionSuccess(false);
   };
 
   const calculateCost = (property) => {
     return tokenQuantity * property.tokenPrice;
+  };
+
+  /** Верхняя граница количества: лимит покупки или то, чем человек владеет (при продаже). */
+  const maxQuantityFor = (property, mode) =>
+    mode === 'buy' ? 1000 : (property?.tokensOwned || 0);
+
+  /**
+   * Сумма → количество токенов. Считать «сколько токенов на 500 сом» в уме человек не должен:
+   * делим на цену и отсекаем вниз, чтобы заявка не просила больше, чем набрано.
+   */
+  const handleAmountChange = (property, mode, raw) => {
+    setAmountDraft(raw);
+
+    const price = Number(property?.tokenPrice) || 0;
+    if (price <= 0) return;
+
+    const parsed = parseAmount(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+
+    const max = maxQuantityFor(property, mode);
+    setTokenQuantity(Math.min(max, Math.max(1, Math.floor(parsed / price))));
   };
 
   const calculateOwnershipYieldGain = (property) => {
@@ -299,6 +337,40 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                           }}
                           className="w-20 p-1.5 border border-gray-200 text-xs rounded-sm text-center text-gray-900 font-montserrat font-semibold focus:outline-none focus:border-[#A38D6D]"
                         />
+                      </div>
+
+                      {/* Второй способ задать ту же покупку: сумма. Ползунок и число токенов
+                          пересчитываются на лету, поэтому «хочу на 500 сом» больше не требует
+                          делить в уме. */}
+                      <div className="flex items-center justify-between gap-3 mt-3">
+                        <label
+                          htmlFor="invest-amount"
+                          className="font-sans text-xs text-gray-600 font-bold"
+                        >
+                          {actionMode === 'buy' ? '…ИЛИ СУММА ПОКУПКИ' : '…ИЛИ СУММА ПРОДАЖИ'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="invest-amount"
+                            type="text"
+                            inputMode="decimal"
+                            value={
+                              amountDraft ??
+                              (tokenQuantity * selectedProperty.tokenPrice).toLocaleString('ru-RU', {
+                                maximumFractionDigits: 2,
+                              })
+                            }
+                            onChange={(e) =>
+                              handleAmountChange(selectedProperty, actionMode, e.target.value)
+                            }
+                            onBlur={() => setAmountDraft(null)}
+                            aria-label={actionMode === 'buy' ? 'Сумма покупки в сомах' : 'Сумма продажи в сомах'}
+                            className="w-32 p-1.5 pr-9 border border-gray-200 text-xs rounded-sm text-center text-gray-900 font-montserrat font-semibold focus:outline-none focus:border-[#A38D6D]"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-400 font-mono pointer-events-none">
+                            сом
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex justify-between text-[8px] text-gray-400 font-mono mt-2">
