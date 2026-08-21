@@ -227,6 +227,22 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // written off: one failed attempt is not a fair test of whether the session is alive.
 const REFRESH_RETRY_DELAYS_MS = [400, 1200];
 
+// Потолок на ОДНУ попытку обновления и на все попытки вместе.
+//
+// Обновление стоит в начале очереди: пока оно не закончится, ждут все запросы вкладки. Без потолка
+// «сервер задумался» превращался в замерший интерфейс на неопределённое время — со стороны это и
+// выглядело как «токены подвисают». Ограничение переводит зависание в обычную ошибку: страница
+// оживает, а следующий запрос пробует снова.
+const REFRESH_ATTEMPT_TIMEOUT_MS = 8_000;
+const REFRESH_TOTAL_BUDGET_MS = 20_000;
+
+/** AbortSignal, срабатывающий через ms. Свой, а не AbortSignal.timeout — тот есть не везде. */
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal, done: () => clearTimeout(timer) };
+}
+
 /**
  * Exchanges the refresh cookie for a fresh access token. Resolves to true when a session was
  * restored, false when there is none.
@@ -239,21 +255,32 @@ let restoreInFlight = null;
 
 async function doRestore() {
   let transient = false;
+  const deadline = Date.now() + REFRESH_TOTAL_BUDGET_MS;
 
   for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt += 1) {
     if (attempt > 0) await sleep(REFRESH_RETRY_DELAYS_MS[attempt - 1]);
 
+    // Бюджет исчерпан — дальше не тянем очередь запросов; сессию при этом не трогаем, повторить
+    // попытку есть кому: следующий вызов, возврат во вкладку или восстановление сети.
+    if (Date.now() >= deadline) break;
+
     let res;
+    const attemptTimeout = timeoutSignal(
+      Math.min(REFRESH_ATTEMPT_TIMEOUT_MS, deadline - Date.now())
+    );
     try {
       res = await fetch(`${BASE_URL}${API_PREFIX}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: '{}',
+        signal: attemptTimeout.signal,
       });
     } catch {
       transient = true;
       continue;
+    } finally {
+      attemptTimeout.done();
     }
 
     if (res.status === 401 || res.status === 403) {
