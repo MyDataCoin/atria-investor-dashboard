@@ -61,6 +61,63 @@ function notifySessionEnded() {
   });
 }
 
+/**
+ * Роль, зашитая в access-токен, в нижнем регистре ('investor', 'admin', 'realtor', ...).
+ *
+ * Читаем полезную нагрузку без проверки подписи — намеренно: проверять её здесь нечем и незачем,
+ * решение всё равно принимает сервер. Клиенту роль нужна ровно для одного — понять, ЧЬЯ это сессия.
+ */
+function roleOf(token) {
+  try {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return (JSON.parse(json)?.role || '').toString().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Кабинет инвестора принимает только сессию инвестора.
+ *
+ * Refresh-кука выписана на `.atria.kg` и общая для сайта, admin.atria.kg и этого домена — так и
+ * задумано, один вход на всю зону. Но вход АДМИНА перезаписывает ту же куку, и тогда этот кабинет
+ * восстанавливал из неё чужую сессию: интерфейс инвестора рисовался, имя оставалось заглушкой
+ * «Инвестор», портфель — нулём, а `/payouts/me` отвечал 403, потому что роль не та. Со стороны это
+ * выглядит как «токен не обновился», хотя токен свежий и полностью рабочий — просто не для этого
+ * кабинета. Чужую сессию честнее не принимать вовсе.
+ */
+const REQUIRED_ROLE = 'investor';
+
+// Слушатели «сессия есть, но она не инвесторская» — им показывают отдельный экран, а не форму входа:
+// человек вошёл, просто не туда, и предлагать ему «войдите» бессмысленно.
+const foreignSessionHandlers = new Set();
+
+/** Подписка на «сессия принадлежит другой роли». Возвращает функцию отписки. */
+export function onForeignSession(handler) {
+  foreignSessionHandlers.add(handler);
+  return () => foreignSessionHandlers.delete(handler);
+}
+
+// Роль чужой сессии, чтобы экран мог назвать её. Пусто, когда всё в порядке.
+let foreignRole = '';
+
+/** Роль чужой сессии ('admin', 'realtor', ...) или '' — сессия своя либо её нет. */
+export function getForeignRole() {
+  return foreignRole;
+}
+
+function notifyForeignSession(role) {
+  foreignRole = role;
+  foreignSessionHandlers.forEach((h) => {
+    try {
+      h(role);
+    } catch {
+      /* один сломанный слушатель не должен ронять остальные */
+    }
+  });
+}
+
 // One rotation per browser rather than per tab: the refresh token rotates on every use, so two tabs
 // waking together present the same token twice. The server tolerates that race now, but sharing the
 // result is quieter and faster — a tab that hears a fresh token adopts it instead of asking.
@@ -72,6 +129,10 @@ if (authChannel) {
     const msg = event.data;
     if (!msg) return;
     if (msg.type === 'tokens' && msg.accessToken && msg.expiresAt > accessExpiresAt) {
+      // Та же проверка роли, что и в setTokens: вкладка-отправитель могла быть открыта под чужой
+      // сессией, и принимать её на веру — значит обойти проверку через BroadcastChannel.
+      const role = roleOf(msg.accessToken);
+      if (role && role !== REQUIRED_ROLE) return;
       applyTokens(msg.accessToken, msg.expiresAt);
     } else if (msg.type === 'ended') {
       clearTokens();
@@ -135,6 +196,17 @@ export function setAccessToken(token) {
 /** Stores a token pair from any auth response and tells the other tabs about it. */
 export function setTokens(tokens) {
   if (!tokens?.accessToken) return false;
+
+  // Сессия чужой роли (см. REQUIRED_ROLE): токен не сохраняем — иначе кабинет выглядит рабочим и
+  // ломается запрос за запросом на 403.
+  const role = roleOf(tokens.accessToken);
+  if (role && role !== REQUIRED_ROLE) {
+    clearTokens();
+    notifyForeignSession(role);
+    return false;
+  }
+
+  foreignRole = '';
   applyTokens(tokens.accessToken, parseExpiry(tokens.expiresAtUtc) || Date.now() + 10 * 60_000);
   authChannel?.postMessage({ type: 'tokens', accessToken, expiresAt: accessExpiresAt });
   return true;

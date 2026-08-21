@@ -13,7 +13,7 @@ import NewsPanel from './components/NewsPanel';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
-import { restoreSession, onSessionEnded } from './api/client';
+import { restoreSession, onSessionEnded, onForeignSession, getForeignRole, signOut } from './api/client';
 import { fetchProperties } from './api/properties';
 import { fetchPortfolio } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
@@ -57,7 +57,15 @@ export default function App() {
     let cancelled = false;
 
     restoreSession().then((restored) => {
-      if (!cancelled) setAuthState(restored ? 'authed' : 'anonymous');
+      // Сессия чужой роли уже отвергнута клиентом — восстановления не было, но и предлагать вход
+      // неверно: человек вошёл, просто под другой учётной записью. Для этого отдельное состояние.
+      if (cancelled) return;
+      if (restored) setAuthState('authed');
+      else setAuthState(getForeignRole() ? 'foreign' : 'anonymous');
+    });
+
+    const unsubscribeForeign = onForeignSession(() => {
+      if (!cancelled) setAuthState('foreign');
     });
 
     // A session that ends later (refresh refused, or a sign-out in another tab) drops the dashboard
@@ -69,6 +77,7 @@ export default function App() {
     return () => {
       cancelled = true;
       unsubscribe();
+      unsubscribeForeign();
     };
   }, []);
 
@@ -295,7 +304,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setCurrentSection('properties')}
-                  className="text-xs text-[#A38D6D] hover:underline uppercase tracking-wide font-bold font-mono cursor-pointer"
+                  className="text-xs text-[#193D7A] hover:underline uppercase tracking-wide font-bold font-mono cursor-pointer"
                 >
                   Посмотреть все мои активы →
                 </button>
@@ -314,7 +323,7 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setCurrentSection('activity')}
-                  className="text-xs text-[#A38D6D] hover:underline uppercase tracking-wide font-bold font-mono cursor-pointer"
+                  className="text-xs text-[#193D7A] hover:underline uppercase tracking-wide font-bold font-mono cursor-pointer"
                 >
                   Проверить логи реестра →
                 </button>
@@ -368,17 +377,50 @@ export default function App() {
   // in fact signed in; rendering it with no session at all shows zeros and no way to fix them.
   if (authState === 'checking') {
     return (
-      <div className="min-h-screen bg-[#FDFDFB] flex flex-col items-center justify-center gap-3 text-gray-400 font-sans">
-        <Loader2 size={28} className="animate-spin text-[#A38D6D]" />
+      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center gap-3 text-gray-400 font-sans">
+        <Loader2 size={28} className="animate-spin text-[#193D7A]" />
         <span className="text-xs uppercase tracking-widest font-bold">Проверяем сессию…</span>
+      </div>
+    );
+  }
+
+  // Вошли, но не тем аккаунтом. Раньше этот случай выглядел как рабочий кабинет, который на каждый
+  // раздел отвечает ошибкой: сессия админа приезжала в общей куке зоны .atria.kg и молча принималась.
+  if (authState === 'foreign') {
+    const role = getForeignRole();
+    return (
+      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center gap-4 px-6 text-center font-sans">
+        <Shield size={30} className="text-[#193D7A]" />
+        <h1 className="font-serif font-bold text-xl text-gray-900">Это кабинет инвестора</h1>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Сейчас вы вошли под другой учётной записью{role ? ` (${role})` : ''}. Вход в Atria общий для
+          всех разделов, поэтому здесь открылась та же сессия — а этот кабинет работает только с
+          инвесторской.
+        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => {
+              signOut().finally(() => setAuthState('anonymous'));
+            }}
+            className="px-5 py-2.5 rounded-full bg-[#193D7A] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#14336B] transition-colors"
+          >
+            Выйти и войти как инвестор
+          </button>
+          <a
+            href={SITE_URL}
+            className="px-5 py-2.5 rounded-full border border-gray-200 text-gray-600 text-xs uppercase tracking-widest font-bold hover:border-[#193D7A] hover:text-[#193D7A] transition-colors"
+          >
+            На atria.kg
+          </a>
+        </div>
       </div>
     );
   }
 
   if (authState === 'anonymous') {
     return (
-      <div className="min-h-screen bg-[#FDFDFB] flex flex-col items-center justify-center gap-4 px-6 text-center font-sans">
-        <Shield size={30} className="text-[#A38D6D]" />
+      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center gap-4 px-6 text-center font-sans">
+        <Shield size={30} className="text-[#193D7A]" />
         <h1 className="font-serif font-bold text-xl text-gray-900">Требуется вход</h1>
         <p className="text-sm text-gray-500 max-w-sm">
           Личный кабинет открывается по сессии, которая заводится на сайте Atria — по номеру телефона
@@ -386,7 +428,7 @@ export default function App() {
         </p>
         <a
           href={SITE_URL}
-          className="mt-2 px-5 py-2.5 rounded-full bg-[#A38D6D] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#8f7a5c] transition-colors"
+          className="mt-2 px-5 py-2.5 rounded-full bg-[#193D7A] text-white text-xs uppercase tracking-widest font-bold hover:bg-[#14336B] transition-colors"
         >
           Войти на atria.kg
         </a>
@@ -395,7 +437,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFB] flex font-sans text-gray-800 paper-grain relative select-none">
+    <div className="min-h-screen bg-[#FFFFFF] flex font-sans text-gray-800 paper-grain relative select-none">
       
       {/* Sidebar Navigation Drawer */}
       <Sidebar 
@@ -420,7 +462,7 @@ export default function App() {
         <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-10 overflow-y-auto">
           {loading ? (
             <div className="py-24 flex flex-col items-center justify-center gap-3 text-gray-400">
-              <Loader2 size={28} className="animate-spin text-[#A38D6D]" />
+              <Loader2 size={28} className="animate-spin text-[#193D7A]" />
               <span className="text-xs uppercase tracking-widest font-bold">Синхронизация реестра активов…</span>
             </div>
           ) : loadError ? (
@@ -435,10 +477,10 @@ export default function App() {
         </main>
 
         {/* Persistent global regulator reassurance footer, pinned to the bottom of the viewport */}
-        <footer className="mt-auto border-t border-gray-100 px-6 lg:px-10 py-5 bg-[#FDFDFB]">
+        <footer className="mt-auto border-t border-gray-100 px-6 lg:px-10 py-5 bg-[#FFFFFF]">
           <div className="max-w-7xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-gray-450 text-[10px] font-mono text-left">
             <div className="flex items-center gap-2">
-              <Shield size={14} className="text-[#A38D6D]" />
+              <Shield size={14} className="text-[#193D7A]" />
               <span>Институциональная регулируемая песочница реестра активов (v4.22)</span>
             </div>
           </div>
