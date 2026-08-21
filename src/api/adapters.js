@@ -50,7 +50,8 @@ function mapPropertyStatus(dto) {
  * Map an API PropertyDto to the property card shape used by PropertiesList.
  *
  * Backend-fed:        id, name, description, tokenPrice, currency, totalTokens,
- *                     availableTokens, status (draft/open/completed).
+ *                     availableTokens, minPurchaseTokens, minPurchaseAmount,
+ *                     areaPerTokenSqM, status (draft/open/completed).
  * Derived:            currentValuation = totalTokens * tokenPrice.
  * PER-INVESTOR (0 until Investments are wired): ownershipPercentage,
  *                     totalInvested, tokensOwned.
@@ -70,6 +71,18 @@ export function mapPropertyDto(dto) {
     currency: dto.currency ?? 'USD',
     totalTokens,
     availableTokens: Number(dto.availableTokens ?? 0),
+
+    // Порог входа приходит с бэкенда: у каждого выпуска он свой, и подставлять сюда
+    // константу значило бы предлагать заявку, которую сервер отклонит.
+    minPurchaseTokens: Math.max(1, Number(dto.minPurchaseTokens ?? 1)),
+    minPurchaseAmount: Number(dto.minPurchaseAmount ?? 0),
+
+    // Площадь на один токен. Токен — доля выпуска, а не квадратный метр; это расчётный
+    // эквивалент для показа рядом с количеством, поэтому null, когда площадь неизвестна.
+    areaPerTokenSqM:
+      dto.areaPerTokenSqM === null || dto.areaPerTokenSqM === undefined
+        ? null
+        : Number(dto.areaPerTokenSqM),
 
     // Total property value, not the investor's stake.
     currentValuation: totalTokens * tokenPrice,
@@ -165,9 +178,13 @@ export function mapPortfolioDto(dto) {
  * Merge the investor's holdings into the public property catalogue.
  *
  * Only `active` investments (approved by an operator) count as holdings. For each
- * property we sum the invested amount and derive tokensOwned / ownership from
- * the property's own tokenPrice and totalTokens. Properties the investor has no
- * active stake in keep the zero per-investor fields set by `mapPropertyDto`.
+ * property we sum the tokens and the money straight off the investments, and take
+ * ownership as a share of the property's own totalTokens. Properties the investor
+ * has no active stake in keep the zero per-investor fields set by `mapPropertyDto`.
+ *
+ * Токены СУММИРУЮТСЯ, а не выводятся из денег делением на цену: количество — целое и
+ * уже записано в заявке, а цена в ней снята на момент подачи. Пересчёт из суммы дал бы
+ * другое число на любом выпуске, где цена с тех пор изменилась.
  *
  * @param {Array} properties  catalogue items from `mapPropertyDto`.
  * @param {Array} investments investor investments from `mapInvestmentDto`.
@@ -176,28 +193,31 @@ export function applyInvestmentsToProperties(properties, investments) {
   const investedByProperty = new Map();
   for (const inv of investments) {
     if (inv.status !== 'active') continue;
-    investedByProperty.set(
-      inv.propertyId,
-      (investedByProperty.get(inv.propertyId) ?? 0) + inv.amount,
-    );
+    const running = investedByProperty.get(inv.propertyId) ?? { tokens: 0, amount: 0 };
+    investedByProperty.set(inv.propertyId, {
+      tokens: running.tokens + inv.tokenCount,
+      amount: running.amount + inv.amount,
+    });
   }
 
   return properties.map((prop) => {
     const invested = investedByProperty.get(prop.id);
     if (!invested) return prop;
 
-    // Доли делимы до 0.01, поэтому Math.round схлопнул бы дробное владение (0,05 доли — в ноль,
-    // 55,55 — в 56). Отсекаем вниз ровно до масштаба доли, как TokenAmount.Floor на бэкенде.
-    // Round перед floor обязателен: в двоичной арифметике 0.29 * 100 = 28.999999999999996, и
-    // голый Math.floor занизил бы владение на сотую.
-    const tokensOwned =
-      prop.tokenPrice > 0
-        ? Math.floor(Math.round((invested / prop.tokenPrice) * 100 * 1e6) / 1e6) / 100
-        : 0;
     const ownershipPercentage =
-      prop.totalTokens > 0 ? (tokensOwned / prop.totalTokens) * 100 : 0;
+      prop.totalTokens > 0 ? (invested.tokens / prop.totalTokens) * 100 : 0;
 
-    return { ...prop, totalInvested: invested, tokensOwned, ownershipPercentage };
+    // Площадь — расчётный эквивалент доли, а не единица учёта: подписывается как эквивалент.
+    const areaOwnedSqM =
+      prop.areaPerTokenSqM === null ? null : prop.areaPerTokenSqM * invested.tokens;
+
+    return {
+      ...prop,
+      totalInvested: invested.amount,
+      tokensOwned: invested.tokens,
+      ownershipPercentage,
+      areaOwnedSqM,
+    };
   });
 }
 

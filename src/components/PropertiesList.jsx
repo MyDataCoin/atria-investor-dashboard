@@ -26,10 +26,38 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
   const [transactionSuccess, setTransactionSuccess] = useState(false);
   const [detailProperty, setDetailProperty] = useState(null);
 
+  /**
+   * Нижняя граница количества. При покупке — минимальная покупка выпуска: заявку меньше неё
+   * сервер отклонит, и предлагать её в интерфейсе значит вести человека к отказу. При продаже
+   * достаточно одного токена.
+   */
+  const minQuantityFor = (property, mode) =>
+    mode === 'buy' ? Math.max(1, property?.minPurchaseTokens || 1) : 1;
+
+  /**
+   * Верхняя граница: свободный остаток выпуска или то, чем человек владеет (при продаже).
+   * Раньше здесь стояла константа 1000 — она не имела отношения ни к одному выпуску и на
+   * мелком номинале отрезала бы почти всю покупку, а на распроданном пуле предлагала бы
+   * несуществующие доли.
+   */
+  const maxQuantityFor = (property, mode) =>
+    mode === 'buy' ? (property?.availableTokens || 0) : (property?.tokensOwned || 0);
+
+  const clampQuantity = (property, mode, value) => {
+    const min = minQuantityFor(property, mode);
+    const max = maxQuantityFor(property, mode);
+    if (max < min) return max;                       // выпуск распродан: ниже минимума и нечего брать
+    return Math.min(max, Math.max(min, Math.floor(value)));
+  };
+
   const handleOpenAction = (property, mode = 'buy') => {
     setSelectedProperty(property);
     setActionMode(mode);
-    setTokenQuantity(mode === 'buy' ? 100 : (property.tokensOwned || 0));
+    setTokenQuantity(
+      mode === 'buy'
+        ? clampQuantity(property, mode, minQuantityFor(property, mode))
+        : (property.tokensOwned || 0),
+    );
     setAmountDraft(null);
     setTransactionSuccess(false);
   };
@@ -38,13 +66,10 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
     return tokenQuantity * property.tokenPrice;
   };
 
-  /** Верхняя граница количества: лимит покупки или то, чем человек владеет (при продаже). */
-  const maxQuantityFor = (property, mode) =>
-    mode === 'buy' ? 1000 : (property?.tokensOwned || 0);
-
   /**
-   * Сумма → количество токенов. Считать «сколько токенов на 500 сом» в уме человек не должен:
-   * делим на цену и отсекаем вниз, чтобы заявка не просила больше, чем набрано.
+   * Сумма → количество токенов. Токен неделим, поэтому введённая сумма почти никогда не
+   * ложится ровно: делим на цену и отсекаем ВНИЗ. Остаток не пропадает молча — он показан
+   * ниже как «сдача», потому что списывается ровно стоимость целых токенов, а не набранное.
    */
   const handleAmountChange = (property, mode, raw) => {
     setAmountDraft(raw);
@@ -55,13 +80,24 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
     const parsed = parseAmount(raw);
     if (!Number.isFinite(parsed) || parsed <= 0) return;
 
-    const max = maxQuantityFor(property, mode);
-    setTokenQuantity(Math.min(max, Math.max(1, Math.floor(parsed / price))));
+    setTokenQuantity(clampQuantity(property, mode, parsed / price));
+  };
+
+  /**
+   * Что стало с введённой суммой: сколько уйдёт за целые токены и сколько останется. Разницу
+   * человек должен видеть ДО подтверждения — иначе он соглашается на одно число, а списывают
+   * другое. Пока поле суммы не трогали, сдачи нет по определению.
+   */
+  const amountBreakdown = (property) => {
+    const total = tokenQuantity * property.tokenPrice;
+    const typed = amountDraft === null ? total : parseAmount(amountDraft);
+    const change = Number.isFinite(typed) && typed > total ? typed - total : 0;
+    return { total, change };
   };
 
   const calculateOwnershipYieldGain = (property) => {
-    const totalTokens = property.currentValuation / property.tokenPrice;
-    const addedPercentage = (tokenQuantity / totalTokens) * 100;
+    const totalTokens = property.totalTokens || 0;
+    const addedPercentage = totalTokens > 0 ? (tokenQuantity / totalTokens) * 100 : 0;
     const addedYield = property.monthlyYield * (addedPercentage / 100);
     return { addedPercentage, addedYield };
   };
@@ -139,7 +175,10 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
 
                 {/* Ownership Percentage Badge */}
                 {isInvested && (
-                  <span className="absolute top-4 right-4 bg-[#111111] text-white border border-[#A38D6D] px-2.5 py-1 font-montserrat font-bold text-[8px] uppercase tracking-widest rounded-md shadow-xs">
+                  <span
+                    className="absolute top-4 right-4 bg-[#111111] text-white border border-[#A38D6D] px-2.5 py-1 font-montserrat font-bold text-[8px] uppercase tracking-widest rounded-md shadow-xs"
+                    title={`Расчётная величина: ${(prop.tokensOwned || 0).toLocaleString('ru-RU')} из ${(prop.totalTokens || 0).toLocaleString('ru-RU')} токенов выпуска`}
+                  >
                     Доля {prop.ownershipPercentage.toFixed(2)}%
                   </span>
                 )}
@@ -183,11 +222,20 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </span>
                   </div>
 
+                  {/* Количество — единица учёта, целое. Площадь под ним подписана как эквивалент:
+                      токен это доля выпуска, а не квадратный метр, и путать их нельзя. */}
                   <div className="flex flex-col text-left">
                     <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold">Куплено токенов</span>
                     <span className="text-sm font-montserrat font-bold text-gray-900 mt-0.5">
                       {(prop.tokensOwned || 0).toLocaleString('ru-RU')}
                     </span>
+                    {prop.areaOwnedSqM != null && (
+                      <span className="text-[9px] text-gray-400 font-mono mt-0.5">
+                        ≈ {prop.areaOwnedSqM.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} м²
+                        {' · '}
+                        {prop.ownershipPercentage.toFixed(2)}% (расчётно)
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -314,27 +362,23 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                       </div>
                       
                       <div className="flex items-center gap-4">
+                        {/* Шаг ровно в один токен: доля неделима, промежуточных значений нет. */}
                         <input 
                           type="range" 
-                          min="1" 
-                          max={actionMode === 'buy' ? 1000 : (selectedProperty.tokensOwned || 0)} 
+                          min={minQuantityFor(selectedProperty, actionMode)}
+                          max={maxQuantityFor(selectedProperty, actionMode)}
                           step="1" 
                           value={tokenQuantity} 
-                          onChange={(e) => setTokenQuantity(Math.min(actionMode === 'buy' ? 1000 : (selectedProperty.tokensOwned || 0), Number(e.target.value)))}
+                          onChange={(e) => setTokenQuantity(clampQuantity(selectedProperty, actionMode, Number(e.target.value)))}
                           className="flex-1 accent-[#A38D6D] h-1.5 bg-gray-100 rounded-lg cursor-pointer"
                         />
                         <input
                           type="number"
-                          min="1"
-                          max={actionMode === 'buy' ? 1000 : (selectedProperty.tokensOwned || 0)}
+                          min={minQuantityFor(selectedProperty, actionMode)}
+                          max={maxQuantityFor(selectedProperty, actionMode)}
+                          step="1"
                           value={tokenQuantity}
-                          onChange={(e) => {
-                            let val = Number(e.target.value);
-                            const maxVal = actionMode === 'buy' ? 1000 : (selectedProperty.tokensOwned || 0);
-                            if (val > maxVal) val = maxVal;
-                            if (val < 1) val = 1;
-                            setTokenQuantity(val);
-                          }}
+                          onChange={(e) => setTokenQuantity(clampQuantity(selectedProperty, actionMode, Number(e.target.value)))}
                           className="w-20 p-1.5 border border-gray-200 text-xs rounded-sm text-center text-gray-900 font-montserrat font-semibold focus:outline-none focus:border-[#A38D6D]"
                         />
                       </div>
@@ -373,19 +417,44 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         </div>
                       </div>
 
+                      {/* Концы шкалы подписаны реальными границами выпуска, а не круглыми числами. */}
                       <div className="flex justify-between text-[8px] text-gray-400 font-mono mt-2">
-                        {actionMode === 'buy' ? (
-                          <>
-                            <span>1 токен ({formatVal(selectedProperty.tokenPrice, currency)})</span>
-                            <span>1,000 токенов ({formatVal(1000 * selectedProperty.tokenPrice, currency)})</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>1 токен ({formatVal(selectedProperty.tokenPrice, currency)})</span>
-                            <span>{selectedProperty.tokensOwned?.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) || 0} токенов ({formatVal((selectedProperty.tokensOwned || 0) * selectedProperty.tokenPrice, currency)})</span>
-                          </>
-                        )}
+                        <span>
+                          {minQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} токен
+                          {actionMode === 'buy' ? ' (минимум)' : ''} (
+                          {formatVal(
+                            minQuantityFor(selectedProperty, actionMode) * selectedProperty.tokenPrice,
+                            currency,
+                          )}
+                          )
+                        </span>
+                        <span>
+                          {maxQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} токенов (
+                          {formatVal(
+                            maxQuantityFor(selectedProperty, actionMode) * selectedProperty.tokenPrice,
+                            currency,
+                          )}
+                          )
+                        </span>
                       </div>
+
+                      {/* Итог округления. Показывается только когда сумму действительно вводили
+                          и она не легла ровно на границу токена. */}
+                      {actionMode === 'buy' && amountBreakdown(selectedProperty).change > 0 && (
+                        <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-sm text-[10px] leading-relaxed text-amber-900">
+                          Токен неделим, поэтому набранная сумма округлена вниз до целого
+                          количества: <span className="font-montserrat font-bold">{tokenQuantity.toLocaleString('ru-RU')}</span>{' '}
+                          токен(ов) за{' '}
+                          <span className="font-montserrat font-bold">
+                            {formatVal(amountBreakdown(selectedProperty).total, currency)}
+                          </span>
+                          . Остаток{' '}
+                          <span className="font-montserrat font-bold">
+                            {formatVal(amountBreakdown(selectedProperty).change, currency)}
+                          </span>{' '}
+                          не списывается — платите ровно за то, что получаете.
+                        </div>
+                      )}
                     </div>
 
                     {/* Financial Summary card */}
@@ -416,7 +485,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         <strong className="text-gray-900">Соответствие регуляторным стандартам</strong>
                         <p className="mt-0.5 text-gray-500 font-sans tracking-wide">
                           {actionMode === 'buy'
-                            ? 'Дробное владение обеспечено записями первичной ипотеки. Полностью соответствует ст. 973d Швейцарского обязательственного кодекса.'
+                            ? 'Долевое владение обеспечено записями первичной ипотеки. Токен — целая доля выпуска; площадь и процент собственности приводятся как расчётный эквивалент.'
                             : 'Сделка продажи долей в RWA-активе регистрируется в распределенном реестре в соответствии со ст. 973f Швейцарского обязательственного кодекса.'
                           }
                         </p>

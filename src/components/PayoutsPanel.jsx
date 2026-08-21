@@ -145,7 +145,7 @@ export default function PayoutsPanel({ properties = [] }) {
                   <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div>
                       <dt className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Долей в реестре</dt>
-                      <dd className="font-mono text-gray-900">{p.tokenCount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}</dd>
+                      <dd className="font-mono text-gray-900">{p.tokenCount.toLocaleString('ru-RU')}</dd>
                     </div>
                     <div>
                       <dt className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Начислено</dt>
