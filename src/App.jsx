@@ -13,7 +13,9 @@ import NewsPanel from './components/NewsPanel';
 import SettingsPanel from './components/SettingsPanel';
 
 // Real backend feeds (catalogue + investor portfolio).
-import { restoreSession, onSessionEnded, onForeignSession, getForeignRole, signOut } from './api/client';
+import {
+  restoreSession, onSessionEnded, onSessionRestored, onForeignSession, getForeignRole, signOut,
+} from './api/client';
 import { fetchProperties } from './api/properties';
 import { fetchPortfolio } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
@@ -68,6 +70,13 @@ export default function App() {
       if (!cancelled) setAuthState('foreign');
     });
 
+    // Вход происходит на сайте, в другой вкладке. Эта могла быть открыта ещё до него и показывать
+    // «требуется вход» — человек возвращается сюда уже авторизованным и видит ровно то, что он
+    // только что опроверг. Просить его обновить страницу — не решение: кабинет должен заметить сам.
+    const unsubscribeRestored = onSessionRestored(() => {
+      if (!cancelled) setAuthState('authed');
+    });
+
     // A session that ends later (refresh refused, or a sign-out in another tab) drops the dashboard
     // back to the same prompt instead of leaving a signed-in-looking page that 401s on every click.
     const unsubscribe = onSessionEnded(() => {
@@ -78,6 +87,7 @@ export default function App() {
       cancelled = true;
       unsubscribe();
       unsubscribeForeign();
+      unsubscribeRestored();
     };
   }, []);
 

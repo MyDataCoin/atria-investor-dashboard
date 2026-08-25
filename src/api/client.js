@@ -94,6 +94,28 @@ const REQUIRED_ROLE = 'investor';
 const foreignSessionHandlers = new Set();
 
 /** Подписка на «сессия принадлежит другой роли». Возвращает функцию отписки. */
+/**
+ * Subscribes to a session that appeared while this tab was already open — the mirror of
+ * {@link onSessionEnded}. Without it the tab knows how to notice a session ending but not one
+ * starting, and someone who signs in on the public site keeps looking at the sign-in prompt.
+ */
+const sessionRestoredHandlers = new Set();
+
+export function onSessionRestored(handler) {
+  sessionRestoredHandlers.add(handler);
+  return () => sessionRestoredHandlers.delete(handler);
+}
+
+function notifySessionRestored() {
+  sessionRestoredHandlers.forEach((h) => {
+    try {
+      h();
+    } catch {
+      /* один сломанный слушатель не должен ронять остальные */
+    }
+  });
+}
+
 export function onForeignSession(handler) {
   foreignSessionHandlers.add(handler);
   return () => foreignSessionHandlers.delete(handler);
@@ -320,15 +342,30 @@ export function restoreSession() {
 
 // Coming back to a backgrounded tab is the other moment a session looks broken: browsers throttle
 // timers in inactive tabs, so the proactive renewal may have fired late or not at all.
+//
+// A tab with NO session is checked too, and that is not the same case. Signing in happens on the
+// public site, in another tab: this one was left showing "sign in required" before the session
+// existed, and it has no reason of its own to look again. Telling the person to reload is not an
+// answer — they have just signed in and are looking at a page that says they have not.
 if (typeof document !== 'undefined') {
-  const renewIfStale = () => {
-    if (accessToken && needsRefresh()) restoreSession();
+  const recheck = () => {
+    if (accessToken) {
+      if (needsRefresh()) restoreSession();
+      return;
+    }
+
+    // No token here yet. The refresh cookie is shared across .atria.kg, so a sign-in that happened
+    // elsewhere is visible to this tab the moment it asks.
+    restoreSession().then((restored) => {
+      if (restored) notifySessionRestored();
+    });
   };
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') renewIfStale();
+    if (document.visibilityState === 'visible') recheck();
   });
-  window.addEventListener('online', renewIfStale);
+  window.addEventListener('online', recheck);
+  window.addEventListener('focus', recheck);
 }
 
 /** Error carrying the parsed ProblemDetails so callers can branch on status. */
