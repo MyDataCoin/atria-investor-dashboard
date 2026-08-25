@@ -258,6 +258,14 @@ const REFRESH_RETRY_DELAYS_MS = [400, 1200];
 const REFRESH_ATTEMPT_TIMEOUT_MS = 8_000;
 const REFRESH_TOTAL_BUDGET_MS = 20_000;
 
+// Пауза после 429, когда сервер не сказал Retry-After. Окно ограничителя на бэкенде — минута,
+// так что ждать меньше бессмысленно: следующий запрос попадёт в тот же отказ.
+const THROTTLE_BACKOFF_MS = 60_000;
+
+// До этого момента обновлять сессию бесполезно — сервер уже отказал по частоте. Общая на все
+// вкладки причина не нужна: ограничитель считает по адресу, а не по вкладке.
+let throttledUntil = 0;
+
 /** AbortSignal, срабатывающий через ms. Свой, а не AbortSignal.timeout — тот есть не везде. */
 function timeoutSignal(ms) {
   const controller = new AbortController();
@@ -276,6 +284,11 @@ function timeoutSignal(ms) {
 let restoreInFlight = null;
 
 async function doRestore() {
+  // Ещё под отказом по частоте — не ходим вовсе. Иначе каждый слушатель (возврат во вкладку,
+  // фокус, появление сети) заводит свой цикл попыток, и они складываются в шквал.
+  if (Date.now() < throttledUntil)
+    return !!accessToken;
+
   let transient = false;
   const deadline = Date.now() + REFRESH_TOTAL_BUDGET_MS;
 
@@ -315,6 +328,18 @@ async function doRestore() {
       return false;
     }
 
+    // 429 — не сетевой сбой, а прямой отказ: «слишком часто». Повторять его через 400 мс значит
+    // тратить попытки внутри того же окна ограничителя и уходить глубже в отказ. Раньше он попадал
+    // в ветку ниже и повторялся, поэтому одна загрузка страницы давала дюжину 429 подряд.
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('Retry-After'));
+      throttledUntil = Date.now()
+        + (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : THROTTLE_BACKOFF_MS);
+
+      // Сессию НЕ трогаем: отказ говорит о частоте запросов, а не о том, вошёл человек или нет.
+      return !!accessToken;
+    }
+
     if (!res.ok) {
       transient = true;
       continue;
@@ -348,7 +373,16 @@ export function restoreSession() {
 // existed, and it has no reason of its own to look again. Telling the person to reload is not an
 // answer — they have just signed in and are looking at a page that says they have not.
 if (typeof document !== 'undefined') {
+  // Три события (возврат во вкладку, фокус, появление сети) приходят почти одновременно, и каждое
+  // без этой защёлки заводило бы свой запрос. Для вошедшего это лишний трафик, для анонимного —
+  // прямой путь в 429: сервер считает частоту по адресу, а не по причине запроса.
+  let recheckAt = 0;
+  const RECHECK_GAP_MS = 3_000;
+
   const recheck = () => {
+    if (Date.now() - recheckAt < RECHECK_GAP_MS) return;
+    recheckAt = Date.now();
+
     if (accessToken) {
       if (needsRefresh()) restoreSession();
       return;
