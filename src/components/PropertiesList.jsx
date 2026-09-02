@@ -560,6 +560,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Стадия', CONSTRUCTION_STAGE_LABELS[dp.constructionStage] || null],
             ['Плановый ввод', formatPlannedDate(dp.plannedCompletionDate)],
             ['Готовность', dp.readinessPercent != null ? `${dp.readinessPercent}%` : null],
+            ['Приём заявок до', formatPlannedDate(dp.placementClosesAtUtc)],
           ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
           return (

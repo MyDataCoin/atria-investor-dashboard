@@ -120,6 +120,11 @@ export function mapPropertyDto(dto) {
     plannedCompletionDate: dto.plannedCompletionDate ?? null,
     readinessPercent: dto.readinessPercent ?? null,
 
+    // Окно размещения. Дата закрытия — то, что инвестору нужно знать раньше всего: после неё
+    // заявку уже не подать, и бэкенд её отклонит даже до того, как свип закроет объект.
+    placementOpensAtUtc: dto.placementOpensAtUtc ?? null,
+    placementClosesAtUtc: dto.placementClosesAtUtc ?? null,
+
     // Not exposed by the catalogue yet.
     monthlyYield: 0,
     roi: 0,
