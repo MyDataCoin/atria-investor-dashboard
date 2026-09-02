@@ -125,6 +125,27 @@ export function mapPropertyDto(dto) {
     plannedCompletionDate: dto.plannedCompletionDate ?? null,
     readinessPercent: dto.readinessPercent ?? null,
 
+    // Описательные характеристики карточки. Полезная площадь идёт рядом с общей: инвестор
+    // покупает долю выпуска, но сравнивает объекты именно по занимаемой площади.
+    totalAreaSqM: dto.totalAreaSqM ?? null,
+    usableAreaSqM: dto.usableAreaSqM ?? null,
+    // Назначение по документам — не то же, что propertyType: тип это фильтр каталога, а здесь
+    // то, что записано в правоустанавливающих, и расхождение инвестору важно видеть.
+    documentedUse: dto.documentedUse ?? null,
+    buildingClass: dto.buildingClass ?? null,
+    wallMaterial: dto.wallMaterial ?? null,
+    heating: dto.heating ?? null,
+    elevator: dto.elevator ?? null,
+    security: dto.security ?? null,
+    parking: dto.parking ?? null,
+    // Проверка Кадастра на обременения. null — не проверяли, и это НЕ «обременений нет»:
+    // показывать чистоту объекта, которую никто не проверял, нельзя.
+    isFreeOfEncumbrances:
+      dto.isFreeOfEncumbrances === true || dto.isFreeOfEncumbrances === false
+        ? dto.isFreeOfEncumbrances
+        : null,
+    encumbranceCheckedAtUtc: dto.encumbranceCheckedAtUtc ?? null,
+
     // Окно размещения. Дата закрытия — то, что инвестору нужно знать раньше всего: после неё
     // заявку уже не подать, и бэкенд её отклонит даже до того, как свип закроет объект.
     placementOpensAtUtc: dto.placementOpensAtUtc ?? null,

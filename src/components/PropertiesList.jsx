@@ -569,6 +569,15 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Год постройки', dp.completionYear],
             ['Застройщик', dp.developer],
             ['Этажей', dp.floors],
+            ['Общая площадь', dp.totalAreaSqM != null ? `${dp.totalAreaSqM} м²` : null],
+            ['Полезная площадь', dp.usableAreaSqM != null ? `${dp.usableAreaSqM} м²` : null],
+            ['Назначение по документам', dp.documentedUse],
+            ['Класс объекта', dp.buildingClass],
+            ['Материал', dp.wallMaterial],
+            ['Отопление', dp.heating],
+            ['Лифт', dp.elevator],
+            ['Охрана', dp.security],
+            ['Парковка', dp.parking],
             // Участок и стройка. Стадия стоит здесь же, а не в отдельном блоке: инвестор читает
             // характеристики подряд, и «Проектирование» рядом с адресом видно раньше, чем он
             // дойдёт до кнопки покупки.
@@ -578,6 +587,13 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Стадия', CONSTRUCTION_STAGE_LABELS[dp.constructionStage] || null],
             ['Плановый ввод', formatPlannedDate(dp.plannedCompletionDate)],
             ['Готовность', dp.readinessPercent != null ? `${dp.readinessPercent}%` : null],
+            // Только положительный результат проверки. «Не проверяли» строкой не показываем:
+            // пустая строка честнее, чем формулировка, которую инвестор прочтёт как «проверено».
+            ['Обременения', dp.isFreeOfEncumbrances === true
+              ? 'Не зарегистрированы'
+              : dp.isFreeOfEncumbrances === false
+                ? 'Есть обременение'
+                : null],
             ['Приём заявок до', formatPlannedDate(dp.placementClosesAtUtc)],
           ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
