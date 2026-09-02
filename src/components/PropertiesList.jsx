@@ -668,6 +668,15 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </section>
                   )}
 
+                  {/* Район — своя секция: для объекта на стадии проектирования окружение и есть
+                      большая часть того, что можно рассказать. */}
+                  {dp.locationDescription && (
+                    <section className="space-y-2">
+                      <h4 className="font-serif text-base font-bold text-gray-900">Район и окружение</h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{dp.locationDescription}</p>
+                    </section>
+                  )}
+
                   {/* Tokenization */}
                   <section className="space-y-3">
                     <h4 className="font-serif text-base font-bold text-gray-900">Токенизация</h4>

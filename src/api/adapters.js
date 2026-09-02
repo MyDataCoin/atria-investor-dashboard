@@ -147,6 +147,8 @@ export function mapPropertyDto(dto) {
     elevator: dto.elevator ?? null,
     security: dto.security ?? null,
     parking: dto.parking ?? null,
+    // Блок о районе — отдельно от description: одно про объект, другое про то, что вокруг.
+    locationDescription: dto.locationDescription ?? null,
     // Проверка Кадастра на обременения. null — не проверяли, и это НЕ «обременений нет»:
     // показывать чистоту объекта, которую никто не проверял, нельзя.
     isFreeOfEncumbrances:
