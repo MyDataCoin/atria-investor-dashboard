@@ -109,6 +109,17 @@ export function mapPropertyDto(dto) {
     floors: dto.floors ?? null,
     salesPaused: !!dto.salesPaused,
 
+    // Земельный участок и строительная готовность. Инвестору это раскрытие, а не украшение:
+    // без стадии участок на стадии проектирования читается как готовое здание.
+    unitType: dto.unitType && dto.unitType !== 'unspecified' ? dto.unitType : null,
+    landAreaHectares: dto.landAreaHectares ?? null,
+    landPlotCode: dto.landPlotCode ?? null,
+    cadastralNumber: dto.cadastralNumber ?? null,
+    constructionStage:
+      dto.constructionStage && dto.constructionStage !== 'unspecified' ? dto.constructionStage : null,
+    plannedCompletionDate: dto.plannedCompletionDate ?? null,
+    readinessPercent: dto.readinessPercent ?? null,
+
     // Not exposed by the catalogue yet.
     monthlyYield: 0,
     roi: 0,

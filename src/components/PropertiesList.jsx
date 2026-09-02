@@ -4,6 +4,25 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatVal, safeUrl } from '../utils';
 
 /**
+ * Стадия строительства, как её видит инвестор. Отдельно от статуса размещения: объект может
+ * продаваться, пока на участке ещё только проект.
+ */
+const CONSTRUCTION_STAGE_LABELS = {
+  land_only: 'Земельный участок',
+  design: 'Проектирование',
+  under_construction: 'Строительство',
+  commissioned: 'Введён в эксплуатацию',
+};
+
+// Плановый ввод — это день, а не момент: время суток в нём ничего не значит.
+const formatPlannedDate = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU');
+};
+
+
+/**
  * Разбор суммы, введённой человеком: «1 200,50», «1200.5», «500 сом» — это одно и то же число.
  * Пробелы (включая неразрывные из форматирования) убираем, запятую приводим к точке: на русской
  * раскладке дробную часть отделяют именно запятой.
@@ -532,6 +551,15 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Год постройки', dp.completionYear],
             ['Застройщик', dp.developer],
             ['Этажей', dp.floors],
+            // Участок и стройка. Стадия стоит здесь же, а не в отдельном блоке: инвестор читает
+            // характеристики подряд, и «Проектирование» рядом с адресом видно раньше, чем он
+            // дойдёт до кнопки покупки.
+            ['Площадь участка', dp.landAreaHectares != null ? `${dp.landAreaHectares} га` : null],
+            ['Идент. код участка', dp.landPlotCode],
+            ['Кадастровый номер', dp.cadastralNumber],
+            ['Стадия', CONSTRUCTION_STAGE_LABELS[dp.constructionStage] || null],
+            ['Плановый ввод', formatPlannedDate(dp.plannedCompletionDate)],
+            ['Готовность', dp.readinessPercent != null ? `${dp.readinessPercent}%` : null],
           ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
           return (
