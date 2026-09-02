@@ -14,6 +14,16 @@ const CONSTRUCTION_STAGE_LABELS = {
   commissioned: 'Введён в эксплуатацию',
 };
 
+// Подпись к неснимаемому изображению. У фотографии её нет — она и так фотография.
+const IMAGE_KIND_LABELS = {
+  render: 'Визуализация',
+  floor_plan: 'Планировка',
+  site_plan: 'Генплан',
+};
+
+// Вид обложки объекта. Обложка — первая картинка галереи.
+const coverKind = (prop) => prop?.gallery?.[0]?.kind || 'photo';
+
 // Плановый ввод — это день, а не момент: время суток в нём ничего не значит.
 const formatPlannedDate = (value) => {
   if (!value) return null;
@@ -167,6 +177,14 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                   alt={prop.name}
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                 />
+
+                {/* Рендер подписан прямо на обложке. Объект ещё не построен, и картинка, выданная
+                    за фотографию, — это обещание здания, которого нет. */}
+                {IMAGE_KIND_LABELS[coverKind(prop)] && (
+                  <span className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-xs text-white text-[8px] uppercase tracking-[0.15em] font-bold px-2 py-1 rounded-sm">
+                    {IMAGE_KIND_LABELS[coverKind(prop)]}
+                  </span>
+                )}
                 
                 {/* Status tag badge.
                     "Продан" = the investor sold all their own tokens of this object.
@@ -584,6 +602,11 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                 <div className="relative h-40 shrink-0 overflow-hidden bg-[#1A1A1A]">
                   <img referrerPolicy="no-referrer" src={dp.image} alt={dp.name} className="w-full h-full object-cover opacity-70" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  {IMAGE_KIND_LABELS[coverKind(dp)] && (
+                    <span className="absolute top-4 left-6 z-10 bg-black/60 backdrop-blur-xs text-white text-[8px] uppercase tracking-[0.15em] font-bold px-2 py-1 rounded-sm">
+                      {IMAGE_KIND_LABELS[coverKind(dp)]}
+                    </span>
+                  )}
                   <button
                     onClick={() => setDetailProperty(null)}
                     className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 flex items-center justify-center cursor-pointer transition-colors"

@@ -96,6 +96,11 @@ export function mapPropertyDto(dto) {
     // Real object details from the backend catalogue.
     image: dto.images?.[0]?.url || pickImage(dto.id),
     images: (dto.images ?? []).map((im) => im.url).filter(Boolean),
+    // Галерея с видом и подписью. Рендер обязан быть подписан как визуализация: это изображение
+    // того, чего ещё нет, и по одному URL инвестор этого не поймёт.
+    gallery: (dto.images ?? [])
+      .filter((im) => im?.url)
+      .map((im) => ({ url: im.url, kind: im.kind || 'photo', caption: im.caption || '' })),
     documents: (dto.documents ?? []).map((d) => ({
       id: d.id, url: d.url, fileName: d.fileName, contentType: d.contentType,
     })),
