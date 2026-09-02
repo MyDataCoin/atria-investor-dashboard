@@ -125,6 +125,15 @@ export function mapPropertyDto(dto) {
     plannedCompletionDate: dto.plannedCompletionDate ?? null,
     readinessPercent: dto.readinessPercent ?? null,
 
+    // Выпускаемая площадь: часть объекта, из которой нарезан выпуск. Метраж доли
+    // (areaPerTokenSqM) бэкенд считает уже из неё.
+    offeredAreaSqM: dto.offeredAreaSqM ?? null,
+    // Периодичность выплат и признак «платит ли уже». Читать для витрины нужно ВТОРОЕ:
+    // объект на стадии проектирования не должен обещать ежемесячные выплаты.
+    payoutFrequency:
+      dto.payoutFrequency && dto.payoutFrequency !== 'unspecified' ? dto.payoutFrequency : null,
+    distributesYet: dto.distributesYet === true,
+
     // Описательные характеристики карточки. Полезная площадь идёт рядом с общей: инвестор
     // покупает долю выпуска, но сравнивает объекты именно по занимаемой площади.
     totalAreaSqM: dto.totalAreaSqM ?? null,

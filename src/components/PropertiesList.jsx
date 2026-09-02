@@ -7,6 +7,14 @@ import { formatVal, safeUrl } from '../utils';
  * Стадия строительства, как её видит инвестор. Отдельно от статуса размещения: объект может
  * продаваться, пока на участке ещё только проект.
  */
+// Периодичность выплат. Показывается только когда выпуск уже платит — см. distributesYet.
+const PAYOUT_FREQUENCY_LABELS = {
+  monthly: 'Ежемесячно',
+  quarterly: 'Ежеквартально',
+  annually: 'Раз в год',
+  none: 'Без выплат',
+}
+
 const CONSTRUCTION_STAGE_LABELS = {
   land_only: 'Земельный участок',
   design: 'Проектирование',
@@ -569,6 +577,16 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Год постройки', dp.completionYear],
             ['Застройщик', dp.developer],
             ['Этажей', dp.floors],
+            ['Выпускается', dp.offeredAreaSqM != null ? `${dp.offeredAreaSqM} м²` : null],
+            // Эквивалент, а не единица выпуска: доля — часть выпуска, а не сам метр.
+            ['Эквивалент доли', dp.areaPerTokenSqM != null
+              ? `≈ ${Number(dp.areaPerTokenSqM).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} м²`
+              : null],
+            // Периодичность показываем ТОЛЬКО когда выпуск действительно платит: обещать
+            // ежемесячные выплаты по объекту на стадии проектирования нельзя.
+            ['Периодичность выплат', dp.distributesYet
+              ? PAYOUT_FREQUENCY_LABELS[dp.payoutFrequency] || null
+              : null],
             ['Общая площадь', dp.totalAreaSqM != null ? `${dp.totalAreaSqM} м²` : null],
             ['Полезная площадь', dp.usableAreaSqM != null ? `${dp.usableAreaSqM} м²` : null],
             ['Назначение по документам', dp.documentedUse],
