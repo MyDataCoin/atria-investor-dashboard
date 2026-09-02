@@ -102,7 +102,14 @@ export function mapPropertyDto(dto) {
       .filter((im) => im?.url)
       .map((im) => ({ url: im.url, kind: im.kind || 'photo', caption: im.caption || '' })),
     documents: (dto.documents ?? []).map((d) => ({
-      id: d.id, url: d.url, fileName: d.fileName, contentType: d.contentType,
+      id: d.id,
+      url: d.url,
+      fileName: d.fileName,
+      contentType: d.contentType,
+      // Вид документа и как его называть. displayName считает бэкенд: название, а если его
+      // не давали — имя файла.
+      category: d.category || 'unspecified',
+      displayName: d.displayName || d.fileName,
     })),
     address: dto.address ?? null,
     city: dto.city ?? null,

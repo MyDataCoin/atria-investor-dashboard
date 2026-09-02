@@ -7,6 +7,16 @@ import { formatVal, safeUrl } from '../utils';
  * Стадия строительства, как её видит инвестор. Отдельно от статуса размещения: объект может
  * продаваться, пока на участке ещё только проект.
  */
+// Вид документа. 'unspecified' и незнакомые значения — без подписи.
+const DOCUMENT_CATEGORY_LABELS = {
+  legal: 'Юридический',
+  technical_passport: 'Техпаспорт',
+  valuation: 'Оценка',
+  collateral: 'Залог',
+  construction_schedule: 'График работ',
+  layout: 'Планировки',
+}
+
 // Периодичность выплат. Показывается только когда выпуск уже платит — см. distributesYet.
 const PAYOUT_FREQUENCY_LABELS = {
   monthly: 'Ежемесячно',
@@ -758,9 +768,18 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                             >
                               <span className="flex items-center gap-2 min-w-0">
                                 <FileText size={14} className="text-[#A38D6D] shrink-0" />
-                                <span className="text-xs text-gray-800 truncate">{doc.fileName || 'Документ'}</span>
+                                <span className="text-xs text-gray-800 truncate">{doc.displayName || doc.fileName || 'Документ'}</span>
                               </span>
-                              <ExternalLink size={13} className="text-gray-400 group-hover:text-[#A38D6D] shrink-0" />
+                              <span className="flex items-center gap-2 shrink-0">
+                                {/* Вид документа: инвестор ищет техпаспорт или график работ, а
+                                    не файл с именем со сканера. */}
+                                {DOCUMENT_CATEGORY_LABELS[doc.category] && (
+                                  <span className="text-[8px] uppercase tracking-wider font-bold text-[#A38D6D] bg-[#A38D6D]/10 px-2 py-0.5 rounded-sm whitespace-nowrap">
+                                    {DOCUMENT_CATEGORY_LABELS[doc.category]}
+                                  </span>
+                                )}
+                                <ExternalLink size={13} className="text-gray-400 group-hover:text-[#A38D6D] shrink-0" />
+                              </span>
                             </a>
                           </li>
                         ))}
