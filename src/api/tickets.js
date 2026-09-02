@@ -8,7 +8,7 @@
  *
  *   GET    /support/tickets               -> Ticket[]   (role-scoped)
  *   GET    /support/tickets/{id}          -> Ticket
- *   POST   /support/tickets               -> Ticket      { subject, category, body }
+ *   POST   /support/tickets               -> Ticket      { subject, category, body, propertyId? }
  *   POST   /support/tickets/{id}/messages -> Message      { body }
  *   POST   /support/tickets/{id}/close    -> 204
  *
@@ -31,6 +31,8 @@ function mapTicketDto(dto) {
     id: dto.id,
     subject: dto.subject ?? '',
     category: dto.category ?? TICKET_CATEGORIES[TICKET_CATEGORIES.length - 1],
+    // Объект, о котором вопрос. null — вопрос про платформу, а не про конкретный выпуск.
+    propertyId: dto.propertyId ?? null,
     status: dto.status ?? 'open',
     createdAtUtc: dto.createdAtUtc,
     updatedAtUtc: dto.updatedAtUtc,
@@ -62,10 +64,17 @@ const api = {
   async fetchTicket(id, { signal } = {}) {
     return mapTicketDto(await apiFetch(`/support/tickets/${id}`, { signal }));
   },
-  async createTicket({ subject, category, body }) {
+  async createTicket({ subject, category, body, propertyId }) {
     const dto = await apiFetch('/support/tickets', {
       method: 'POST',
-      body: { subject: subject.trim(), category, body: body.trim() },
+      // propertyId отправляем только когда объект выбран: пустая строка из select — это
+      // «вопрос общий», и слать её как id нельзя.
+      body: {
+        subject: subject.trim(),
+        category,
+        body: body.trim(),
+        ...(propertyId ? { propertyId } : {}),
+      },
     });
     return mapTicketDto(dto);
   },
@@ -134,12 +143,13 @@ const local = {
   async fetchTicket(id) {
     return read().find((t) => t.id === id) ?? null;
   },
-  async createTicket({ subject, category, body }) {
+  async createTicket({ subject, category, body, propertyId }) {
     const now = new Date().toISOString();
     const ticket = {
       id: uid(),
       subject: subject.trim(),
       category,
+      propertyId: propertyId || null,
       status: 'open',
       createdAtUtc: now,
       updatedAtUtc: now,

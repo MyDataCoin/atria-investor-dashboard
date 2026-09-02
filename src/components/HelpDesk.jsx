@@ -8,6 +8,7 @@ import {
   addMessage,
   ticketsConnected,
 } from '../api/tickets';
+import { fetchProperties } from '../api/properties';
 
 const STATUS = {
   open: { label: 'Открыт', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
@@ -38,7 +39,11 @@ export default function HelpDesk() {
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState(TICKET_CATEGORIES[0]);
   const [body, setBody] = useState('');
+  const [propertyId, setPropertyId] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Каталог для выбора объекта. Пустой список — не ошибка: тикет можно завести и без объекта,
+  // поэтому падать или блокировать форму из-за недоступного каталога нельзя.
+  const [properties, setProperties] = useState([]);
 
   // Reply
   const [reply, setReply] = useState('');
@@ -52,6 +57,14 @@ export default function HelpDesk() {
 
   useEffect(() => { reload(); }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchProperties()
+      .then((list) => { if (!cancelled) setProperties(list ?? []); })
+      .catch(() => { if (!cancelled) setProperties([]); });
+    return () => { cancelled = true; };
+  }, []);
+
   const openTicket = async (id) => {
     setActive(await fetchTicket(id));
     setView('detail');
@@ -62,8 +75,8 @@ export default function HelpDesk() {
     if (!subject.trim() || !body.trim()) return;
     setSubmitting(true);
     try {
-      const t = await createTicket({ subject, category, body });
-      setSubject(''); setBody(''); setCategory(TICKET_CATEGORIES[0]);
+      const t = await createTicket({ subject, category, body, propertyId });
+      setSubject(''); setBody(''); setCategory(TICKET_CATEGORIES[0]); setPropertyId('');
       await reload();
       setActive(t);
       setView('detail');
@@ -182,6 +195,23 @@ export default function HelpDesk() {
                 </select>
               </div>
             </div>
+            {/* Объект, о котором вопрос: по нему поддержка направляет обращение специалисту,
+                который этот объект ведёт. Необязательно — «не могу войти» не про объект. */}
+            {properties.length > 0 && (
+              <div className="space-y-1">
+                <label className="block text-[8px] tracking-widest uppercase font-bold text-gray-400">Объект (необязательно)</label>
+                <select
+                  value={propertyId}
+                  onChange={(e) => setPropertyId(e.target.value)}
+                  className="w-full text-xs p-2.5 border border-gray-250 rounded-md bg-white focus:outline-none focus:border-[#A38D6D]"
+                >
+                  <option value="">Вопрос общего характера</option>
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="block text-[8px] tracking-widest uppercase font-bold text-gray-400">Сообщение</label>
               <textarea
