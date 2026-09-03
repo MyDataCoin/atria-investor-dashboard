@@ -202,7 +202,8 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
                     inputMode="numeric"
                     value={code}
                     onChange={(e) => { setCode(e.target.value); setError(''); }}
-                    placeholder="0000"
+                    maxLength={6}
+                    placeholder="000000"
                     className="w-32 text-xs font-mono p-2.5 bg-white border border-gray-250 rounded-md text-gray-900 focus:outline-none focus:border-[#A38D6D]"
                   />
                   <button
