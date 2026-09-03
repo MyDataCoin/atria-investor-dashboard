@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { User, Wallet, Check, ShieldAlert } from 'lucide-react';
-import { fetchKycProfile, linkWallet, requestWalletChange, changeWallet } from '../api/kyc';
+import {
+  fetchKycProfile,
+  linkWallet,
+  requestWalletChange,
+  changeWallet,
+  fetchWalletChangeImpact,
+} from '../api/kyc';
 
 /** Тот же формат, что принимает бэкенд: 0x + 40 hex. */
 const isEvmAddress = (v) => /^0x[a-fA-F0-9]{40}$/.test((v || '').trim());
@@ -17,6 +23,9 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
   // Смена привязанного адреса — через код из СМС. 'idle' -> 'code'.
   const [changeStep, setChangeStep] = useState('idle');
   const [code, setCode] = useState('');
+  // Что останется на старом адресе: доли туда уже выпущены и никуда не переедут.
+  const [impact, setImpact] = useState(null);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +48,10 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
   const readableError = (err) => {
     const code = err?.problem?.code || err?.problem?.title;
     if (code === 'Kyc.WalletHasShares')
-      return 'По текущему кошельку уже выпущены доли — смену делает поддержка.';
+      return 'Подтвердите, что доли на старом адресе остаются там.';
+    if (code === 'Kyc.WalletInMintBatch')
+      return 'Заявка с этим адресом уже ушла бирже. Смена возможна после того, как список будет '
+        + 'исполнен или отменён.';
     if (code === 'Kyc.WalletAlreadyLinked')
       return 'Кошелёк уже привязан. Используйте смену адреса.';
     return err?.problem?.detail || err?.message || 'Не удалось сохранить.';
@@ -78,6 +90,16 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
     setBusy(true);
     setError('');
     try {
+      // Сначала показываем цену решения, потом шлём код: узнать про застрявшие доли после
+      // смены — значит узнать поздно.
+      const info = await fetchWalletChangeImpact().catch(() => null);
+      setImpact(info);
+      setAcknowledged(false);
+      if (info?.hasPendingMintBatch) {
+        setError('Заявка с этим адресом уже ушла бирже. Смена возможна после того, как список '
+          + 'будет исполнен или отменён.');
+        return;
+      }
       await requestWalletChange();
       setChangeStep('code');
     } catch (err) {
@@ -93,10 +115,12 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
     setBusy(true);
     setError('');
     try {
-      await changeWallet(walletAddress.trim(), code.trim());
+      await changeWallet(walletAddress.trim(), code.trim(), acknowledged);
       setLinked(walletAddress.trim());
       setChangeStep('idle');
       setCode('');
+      setImpact(null);
+      setAcknowledged(false);
       flashSaved();
     } catch (err) {
       setError(readableError(err));
@@ -196,6 +220,37 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
                   Мы отправили код на номер, привязанный к аккаунту. Он подтверждает смену адреса
                   зачисления долей.
                 </p>
+
+                {/* Цена решения. Доли остаются на старом кошельке: приватный ключ у инвестора,
+                    у платформы его нет — перевести их за него она не может. */}
+                {impact?.strandedTokenCount > 0 && (
+                  <div className="mt-2 p-2.5 bg-white border border-amber-300 rounded-md space-y-2">
+                    <p className="text-[11px] text-amber-800 font-bold leading-relaxed">
+                      На текущем адресе {impact.strandedTokenCount}{' '}
+                      {impact.strandedIssueCount > 1
+                        ? `дол. по ${impact.strandedIssueCount} выпускам`
+                        : 'дол.'}
+                      {' '}— они там и останутся.
+                    </p>
+                    <p className="text-[10px] text-gray-600 leading-relaxed">
+                      Платформа не может их перевести: ключ от кошелька есть только у вас. После
+                      смены доли и дивиденды по ним не появятся на новом адресе, пока вы не
+                      переведёте их сами. Новый адрес нужно будет добавить в реестр — обратитесь
+                      в поддержку, иначе перевод не пройдёт.
+                    </p>
+                    <label className="flex items-start gap-2 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={acknowledged}
+                        onChange={(e) => { setAcknowledged(e.target.checked); setError(''); }}
+                        className="mt-0.5 accent-[#A38D6D] cursor-pointer"
+                      />
+                      <span className="text-[10px] text-gray-700 font-semibold leading-relaxed">
+                        Понимаю, что доли на старом адресе не переедут на новый.
+                      </span>
+                    </label>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 pt-1">
                   <input
                     type="text"
@@ -209,14 +264,21 @@ export default function SettingsPanel({ investorName, currency, onCurrencyChange
                   <button
                     type="button"
                     onClick={handleConfirmChange}
-                    disabled={busy || !code.trim()}
+                    disabled={busy || !code.trim() || (impact?.strandedTokenCount > 0 && !acknowledged)}
                     className="bg-[#111111] hover:bg-[#A38D6D] disabled:opacity-50 text-white px-4 py-2.5 rounded-md text-[9px] uppercase tracking-widest font-bold cursor-pointer transition-colors"
                   >
                     {busy ? 'Проверяем…' : 'Подтвердить смену'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setChangeStep('idle'); setCode(''); setError(''); setWalletAddress(linked || ''); }}
+                    onClick={() => {
+                      setChangeStep('idle');
+                      setCode('');
+                      setError('');
+                      setImpact(null);
+                      setAcknowledged(false);
+                      setWalletAddress(linked || '');
+                    }}
                     className="px-3 py-2.5 text-[9px] uppercase tracking-widest font-bold text-gray-500 hover:text-gray-800 cursor-pointer"
                   >
                     Отмена

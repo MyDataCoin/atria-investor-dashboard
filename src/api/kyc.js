@@ -29,6 +29,23 @@ export async function linkWallet(walletAddress) {
   await apiFetch('/kyc/wallet', { method: 'PATCH', body: { walletAddress } });
 }
 
+/**
+ * GET /kyc/wallet/change/impact — что останется на текущем адресе при смене.
+ *
+ * Доли, уже выпущенные на кошелёк, остаются на нём: приватного ключа у платформы нет, перевести
+ * их она не может. Число показываем ДО смены, а не после — иначе инвестор обнаружит пустой
+ * портфель и не поймёт, куда всё делось.
+ */
+export async function fetchWalletChangeImpact() {
+  const dto = await apiFetch('/kyc/wallet/change/impact');
+  return {
+    currentWalletAddress: dto?.currentWalletAddress ?? null,
+    strandedTokenCount: Number(dto?.strandedTokenCount ?? 0),
+    strandedIssueCount: Number(dto?.strandedIssueCount ?? 0),
+    hasPendingMintBatch: dto?.hasPendingMintBatch === true,
+  };
+}
+
 /** POST /kyc/wallet/change/request — выслать код на телефон из аккаунта. */
 export async function requestWalletChange() {
   await apiFetch('/kyc/wallet/change/request', { method: 'POST' });
@@ -40,6 +57,9 @@ export async function requestWalletChange() {
  * 409, если по текущему адресу уже выпущены доли или список ушёл бирже: такую замену делает
  * поддержка, потому что выпущенные доли за инвестором на новый адрес не переезжают.
  */
-export async function changeWallet(walletAddress, code) {
-  await apiFetch('/kyc/wallet/change', { method: 'PATCH', body: { walletAddress, code } });
+export async function changeWallet(walletAddress, code, acknowledgeStrandedShares = false) {
+  await apiFetch('/kyc/wallet/change', {
+    method: 'PATCH',
+    body: { walletAddress, code, acknowledgeStrandedShares },
+  });
 }
