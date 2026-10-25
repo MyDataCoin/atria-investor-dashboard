@@ -30,10 +30,12 @@ function shortAddress(id = '') {
 }
 
 // Backend property lifecycle -> the UI status token PropertiesList renders.
-//   draft     -> pending  ("Ожидается", not yet published)
-//   open      -> active   ("Активен", can buy more / sell)
-//   completed -> exited   ("Продан", offering closed)
-const PROPERTY_STATUS = { draft: 'pending', open: 'active', completed: 'exited' };
+//   draft       -> pending  ("Ожидается", not yet published)
+//   coming_soon -> soon     ("Скоро в продаже": announced, issue terms not final, nothing to buy)
+//   open        -> active   ("Активен", can buy more / sell)
+//   completed   -> exited   ("Продан", offering closed)
+// coming_soon used to fall through to 'active' and showed a buy button on an unopened issue.
+const PROPERTY_STATUS = { draft: 'pending', coming_soon: 'soon', open: 'active', completed: 'exited' };
 
 /**
  * Derive the card status. Prefers the new `status` enum; falls back to the old

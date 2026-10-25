@@ -192,6 +192,8 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
           // Buying more is only possible while the offering is open on the site.
           // Selling own tokens stays available even after it's sold out (completed).
           const canBuy = prop.status === 'active';
+          // «Скоро в продаже»: параметры выпуска ещё могут измениться, про доли молчим.
+          const isSoon = prop.status === 'soon';
           return (
             <motion.div
               key={prop.id}
@@ -232,11 +234,13 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     ? 'Продан'
                     : prop.status === 'active' ? 'Активен на сайте'
                     : prop.status === 'pending' ? 'Ожидается'
+                    : prop.status === 'soon' ? 'Скоро в продаже'
                     : 'Распродан на сайте';
                   const cls = soldOut
                     ? 'bg-rose-600 text-white border-rose-700/40'
                     : prop.status === 'active' ? 'bg-emerald-600 text-white border-emerald-700/40'
                     : prop.status === 'pending' ? 'bg-amber-500 text-white border-amber-600/40'
+                    : prop.status === 'soon' ? 'bg-[#A38D6D] text-white border-[#8a7656]/40'
                     : 'bg-gray-800 text-white border-black/30';
                   return (
                     <span className={`absolute top-4 left-4 px-2.5 py-1 font-sans text-[9px] font-bold uppercase tracking-widest rounded-md border shadow-md ${cls}`}>
@@ -272,6 +276,11 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                 </div>
 
                 {/* Real-estate statistics table */}
+                {isSoon ? (
+                  <p className="pt-3 border-t border-gray-100 text-[11px] text-gray-500 leading-relaxed">
+                    Объект анонсирован. Условия выпуска будут опубликованы при открытии продаж.
+                  </p>
+                ) : (
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-gray-100">
                   <div className="flex flex-col text-left">
                     <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold">Общая оценка</span>
@@ -310,6 +319,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     )}
                   </div>
                 </div>
+                )}
 
                  {/* Call-to-action details */}
                  <div className="pt-2">
@@ -348,7 +358,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                        disabled
                        className="w-full bg-gray-50 border border-gray-100 text-gray-400 px-4 py-2 rounded-md text-[10px] uppercase font-bold tracking-widest text-center"
                      >
-                       Распродано
+                       {isSoon ? 'Скоро в продаже' : 'Распродано'}
                      </button>
                    )}
                  </div>
@@ -597,6 +607,8 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ? ((dp.totalTokens - dp.availableTokens) / dp.totalTokens) * 100
             : 0;
           const canBuy = dp.status === 'active';
+          // «Скоро в продаже» — ни цены, ни долей, ни эквивалента: условия ещё не окончательны.
+          const isSoon = dp.status === 'soon';
           const specs = [
             ['Полный адрес', dp.address],
             ['Тип недвижимости', dp.propertyType],
@@ -604,14 +616,14 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Год постройки', dp.completionYear],
             ['Застройщик', dp.developer],
             ['Этажей', dp.floors],
-            ['Выпускается', dp.offeredAreaSqM != null ? `${dp.offeredAreaSqM} м²` : null],
+            ['Выпускается', dp.offeredAreaSqM != null && !isSoon ? `${dp.offeredAreaSqM} м²` : null],
             // Эквивалент, а не единица выпуска: доля — часть выпуска, а не сам метр.
-            ['Эквивалент доли', dp.areaPerTokenSqM != null
+            ['Эквивалент доли', dp.areaPerTokenSqM != null && !isSoon
               ? `≈ ${Number(dp.areaPerTokenSqM).toLocaleString('ru-RU', { maximumFractionDigits: 4 })} м²`
               : null],
             // Периодичность показываем ТОЛЬКО когда выпуск действительно платит: обещать
             // ежемесячные выплаты по объекту на стадии проектирования нельзя.
-            ['Периодичность выплат', dp.distributesYet
+            ['Периодичность выплат', dp.distributesYet && !isSoon
               ? PAYOUT_FREQUENCY_LABELS[dp.payoutFrequency] || null
               : null],
             ['Общая площадь', dp.totalAreaSqM != null ? `${dp.totalAreaSqM} м²` : null],
@@ -640,7 +652,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
               : dp.isFreeOfEncumbrances === false
                 ? 'Есть обременение'
                 : null],
-            ['Приём заявок до', formatPlannedDate(dp.placementClosesAtUtc)],
+            ['Приём заявок до', isSoon ? null : formatPlannedDate(dp.placementClosesAtUtc)],
           ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
           return (
@@ -705,7 +717,8 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </section>
                   )}
 
-                  {/* Tokenization */}
+                  {/* Tokenization — не для «Скоро в продаже»: цифры выпуска ещё могут поменяться. */}
+                  {!isSoon && (
                   <section className="space-y-3">
                     <h4 className="font-serif text-base font-bold text-gray-900">Токенизация</h4>
                     <div className="grid grid-cols-2 gap-2">
@@ -731,6 +744,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                       </div>
                     </div>
                   </section>
+                  )}
 
                   {/* Investor's own holding */}
                   {invested && (
