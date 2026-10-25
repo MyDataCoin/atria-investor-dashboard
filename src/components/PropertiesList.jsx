@@ -49,6 +49,23 @@ const formatPlannedDate = (value) => {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU');
 };
 
+const QUARTERS = ['I', 'II', 'III', 'IV'];
+
+// Срок ввода с той точностью, с какой его назвал застройщик: «4 квартал 2027», показанный как
+// «31.12.2027», читается как обещание конкретного дня, которого никто не давал.
+const formatPlannedCompletion = (value, precision) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const year = d.getUTCFullYear();
+  switch (precision) {
+    case 'year': return String(year);
+    case 'quarter': return `${QUARTERS[Math.floor(d.getUTCMonth() / 3)]} квартал ${year}`;
+    case 'month': return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    default: return formatPlannedDate(value);
+  }
+};
+
 
 /**
  * Разбор суммы, введённой человеком: «1 200,50», «1200.5», «500 сом» — это одно и то же число.
@@ -606,6 +623,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Лифт', dp.elevator],
             ['Охрана', dp.security],
             ['Парковка', dp.parking],
+            ['Управляющая компания', dp.managementCompany],
             // Участок и стройка. Стадия стоит здесь же, а не в отдельном блоке: инвестор читает
             // характеристики подряд, и «Проектирование» рядом с адресом видно раньше, чем он
             // дойдёт до кнопки покупки.
@@ -613,7 +631,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
             ['Идент. код участка', dp.landPlotCode],
             ['Кадастровый номер', dp.cadastralNumber],
             ['Стадия', CONSTRUCTION_STAGE_LABELS[dp.constructionStage] || null],
-            ['Плановый ввод', formatPlannedDate(dp.plannedCompletionDate)],
+            ['Плановый ввод', formatPlannedCompletion(dp.plannedCompletionDate, dp.plannedCompletionPrecision)],
             ['Готовность', dp.readinessPercent != null ? `${dp.readinessPercent}%` : null],
             // Только положительный результат проверки. «Не проверяли» строкой не показываем:
             // пустая строка честнее, чем формулировка, которую инвестор прочтёт как «проверено».

@@ -130,6 +130,8 @@ export function mapPropertyDto(dto) {
     constructionStage:
       dto.constructionStage && dto.constructionStage !== 'unspecified' ? dto.constructionStage : null,
     plannedCompletionDate: dto.plannedCompletionDate ?? null,
+    // day | month | quarter | year — «4 квартал 2027» не превращаем в «31.12.2027».
+    plannedCompletionPrecision: dto.plannedCompletionPrecision || 'day',
     readinessPercent: dto.readinessPercent ?? null,
 
     // Выпускаемая площадь: часть объекта, из которой нарезан выпуск. Метраж доли
@@ -154,6 +156,8 @@ export function mapPropertyDto(dto) {
     elevator: dto.elevator ?? null,
     security: dto.security ?? null,
     parking: dto.parking ?? null,
+    // Кто сдаёт и обслуживает объект — источник цифр по аренде, из которых считаются выплаты.
+    managementCompany: dto.managementCompany ?? null,
     // Блок о районе — отдельно от description: одно про объект, другое про то, что вокруг.
     locationDescription: dto.locationDescription ?? null,
     // Проверка Кадастра на обременения. null — не проверяли, и это НЕ «обременений нет»:
