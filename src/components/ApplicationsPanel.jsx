@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, AlertTriangle, Clock, XCircle, CheckCircle2, Ban, Hourglass } from 'lucide-react';
+import { Loader2, AlertTriangle, Clock, XCircle, CheckCircle2, Ban, Hourglass, Wallet } from 'lucide-react';
+import PaymentPanel from './PaymentPanel';
 import { fetchMyInvestments, cancelInvestment } from '../api/investments';
 import { INVESTMENT_STATUS_LABELS } from '../api/adapters';
 import { formatVal } from '../utils';
 import ChainRecord from './ChainRecord';
 
-// One visual treatment per application state. There is no payment step: an
-// application is reserved, then an operator approves or rejects it, the investor
-// cancels it, or the reservation lapses on its own.
+// One visual treatment per application state. A reserved application can be
+// paid from here (crypto invoice or bank transfer); an operator then approves or
+// rejects it, the investor cancels it, or the reservation lapses on its own.
 const STATUS_STYLE = {
   reserved: { icon: Clock, badge: 'bg-amber-500 text-white border-amber-600/40' },
   active: { icon: CheckCircle2, badge: 'bg-emerald-600 text-white border-emerald-700/40' },
@@ -52,6 +53,7 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
+  const [payingId, setPayingId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
   const nameById = new Map(properties.map((p) => [p.id, p.name]));
@@ -203,8 +205,20 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
                 </p>
               )}
 
+              {app.status === 'reserved' && payingId === app.id && (
+                <PaymentPanel investmentId={app.id} amount={app.amount} currency={currency} />
+              )}
+
               {app.status === 'reserved' && (
-                <div className="pt-1">
+                <div className="pt-1 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setPayingId(payingId === app.id ? null : app.id)}
+                    id={`pay-application-${app.id}`}
+                    className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#A38D6D] cursor-pointer"
+                  >
+                    <Wallet size={12} />
+                    {payingId === app.id ? 'Скрыть оплату' : 'Оплатить'}
+                  </button>
                   <button
                     onClick={() => handleCancel(app.id)}
                     disabled={cancellingId === app.id}
