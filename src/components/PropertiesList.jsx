@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Plus, Shield, CheckCircle, X, Building2, Layers, CalendarDays, FileText, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { formatVal, safeUrl } from '../utils';
+import { formatVal, safeUrl, fmtPct, fmtArea, plural } from '../utils';
 
 /**
  * Стадия строительства, как её видит инвестор. Отдельно от статуса размещения: объект может
@@ -80,7 +80,7 @@ function parseAmount(raw) {
   return normalized === '' ? NaN : Number(normalized);
 }
 
-export default function PropertiesList({ properties, onInvest, onSell, currency = 'USD' }) {
+export default function PropertiesList({ properties, onInvest, onApplicationCreated, currency = 'USD' }) {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [actionMode, setActionMode] = useState('buy');
   const [tokenQuantity, setTokenQuantity] = useState(100);
@@ -88,6 +88,8 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
   // немедленно превратилось бы в отформатированные «5», и дописать до пятисот было бы нельзя.
   const [amountDraft, setAmountDraft] = useState(null);
   const [transactionSuccess, setTransactionSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [detailProperty, setDetailProperty] = useState(null);
 
   /**
@@ -166,21 +168,25 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
     return { addedPercentage, addedYield };
   };
 
-  const handleConfirmAction = () => {
-    if (!selectedProperty) return;
+  // A real application: POST /investments, then the investor lands in «Мои заявки» to pay it.
+  const handleConfirmAction = async () => {
+    if (!selectedProperty || actionMode !== 'buy' || submitting) return;
     const cost = calculateCost(selectedProperty);
-    
-    if (actionMode === 'buy') {
-      onInvest(selectedProperty.id, tokenQuantity, cost);
-    } else {
-      onSell(selectedProperty.id, tokenQuantity, cost);
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await onInvest(selectedProperty.id, tokenQuantity, cost);
+      setTransactionSuccess(true);
+      setTimeout(() => {
+        setSelectedProperty(null);
+        setTransactionSuccess(false);
+        onApplicationCreated?.();
+      }, 1500);
+    } catch (err) {
+      setSubmitError(err?.message || 'Не удалось создать заявку. Попробуйте ещё раз.');
+    } finally {
+      setSubmitting(false);
     }
-    setTransactionSuccess(true);
-    
-    setTimeout(() => {
-      setSelectedProperty(null);
-      setTransactionSuccess(false);
-    }, 1800);
   };
 
   return (
@@ -255,7 +261,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     className="absolute top-4 right-4 bg-[#111111] text-white border border-[#A38D6D] px-2.5 py-1 font-montserrat font-bold text-[8px] uppercase tracking-widest rounded-md shadow-xs"
                     title={`Расчётная величина: ${(prop.tokensOwned || 0).toLocaleString('ru-RU')} из ${(prop.totalTokens || 0).toLocaleString('ru-RU')} токенов выпуска`}
                   >
-                    Доля {prop.ownershipPercentage.toFixed(2)}%
+                    Доля {fmtPct(prop.ownershipPercentage)}
                   </span>
                 )}
               </div>
@@ -312,9 +318,9 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </span>
                     {prop.areaOwnedSqM != null && (
                       <span className="text-[9px] text-gray-400 font-mono mt-0.5">
-                        ≈ {prop.areaOwnedSqM.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} м²
+                        ≈ {fmtArea(prop.areaOwnedSqM)} м²
                         {' · '}
-                        {prop.ownershipPercentage.toFixed(2)}% (расчётно)
+                        {fmtPct(prop.ownershipPercentage)} (расчётно)
                       </span>
                     )}
                   </div>
@@ -336,13 +342,12 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                            <span>Купить</span>
                          </button>
                        )}
-                       <button
-                         id={`sell-shares-btn-${prop.id}`}
-                         onClick={() => handleOpenAction(prop, 'sell')}
-                         className={`${canBuy ? 'flex-1' : 'w-full'} flex items-center justify-center gap-1.5 cursor-pointer border border-[#A38D6D] text-[#A38D6D] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 py-2.5 rounded-md text-[9px] uppercase tracking-widest transition-all shadow-xs font-semibold bg-white`}
-                       >
-                         <span>Продать</span>
-                       </button>
+                       {/* Secondary sale has no backend yet — no button that pretends to sell. */}
+                       {!canBuy && (
+                         <span className="w-full text-center border border-gray-100 bg-gray-50 text-gray-400 py-2.5 rounded-md text-[9px] uppercase tracking-widest font-semibold">
+                           Продажа долей — скоро
+                         </span>
+                       )}
                      </div>
                    ) : canBuy ? (
                      <button
@@ -395,16 +400,14 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     <CheckCircle size={32} />
                   </div>
                   <h3 className="text-xl font-serif font-bold text-gray-900 text-center">
-                    {actionMode === 'buy' ? 'Покупка оформлена!' : 'Продажа оформлена!'}
+                    Заявка создана
                   </h3>
                   <p className="text-[10px] text-[#A38D6D] uppercase tracking-widest text-center font-bold">
-                    {actionMode === 'buy' ? 'Генерация токенизированного сертификата...' : 'Списание токенов собственности...'}
+                    Переходим к оплате…
                   </p>
                   <p className="text-xs text-gray-500 text-center max-w-sm leading-relaxed">
-                    {actionMode === 'buy' 
-                      ? 'Ваша доля в праве собственности на недвижимость успешно обработана. Хэш обновленного документа ожидает подтверждения в реестре швейцарского блокчейна.'
-                      : 'Ваши токены успешно списаны и аннулированы. Вырученные за их продажу средства зачислены на ваш инвестиционный баланс.'
-                    }
+                    Доли зарезервированы за вами. Оплатите заявку в разделе «Мои заявки» — после подтверждения
+                    оплаты доли будут выпущены на ваш кошелёк в сети.
                   </p>
                 </div>
               ) : (
@@ -418,7 +421,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         {selectedProperty.name}
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Цена: <span className="font-montserrat font-bold text-gray-800">{formatVal(selectedProperty.tokenPrice, currency)}</span>/токен • Код пула: ATR-{selectedProperty.name.substring(0, 3).toUpperCase()}
+                        Цена: <span className="font-montserrat font-bold text-gray-800">{formatVal(selectedProperty.tokenPrice, currency)}</span>/токен
                       </p>
                     </div>
                   </div>
@@ -502,7 +505,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                       {/* Концы шкалы подписаны реальными границами выпуска, а не круглыми числами. */}
                       <div className="flex justify-between text-[8px] text-gray-400 font-mono mt-2">
                         <span>
-                          {minQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} токен
+                          {minQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} {plural(minQuantityFor(selectedProperty, actionMode), 'токен', 'токена', 'токенов')}
                           {actionMode === 'buy' ? ' (минимум)' : ''} (
                           {formatVal(
                             minQuantityFor(selectedProperty, actionMode) * selectedProperty.tokenPrice,
@@ -511,7 +514,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                           )
                         </span>
                         <span>
-                          {maxQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} токенов (
+                          {maxQuantityFor(selectedProperty, actionMode).toLocaleString('ru-RU')} {plural(maxQuantityFor(selectedProperty, actionMode), 'токен', 'токена', 'токенов')} (
                           {formatVal(
                             maxQuantityFor(selectedProperty, actionMode) * selectedProperty.tokenPrice,
                             currency,
@@ -526,7 +529,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-sm text-[10px] leading-relaxed text-amber-900">
                           Токен неделим, поэтому набранная сумма округлена вниз до целого
                           количества: <span className="font-montserrat font-bold">{tokenQuantity.toLocaleString('ru-RU')}</span>{' '}
-                          токен(ов) за{' '}
+                          {plural(tokenQuantity, 'токен', 'токена', 'токенов')} за{' '}
                           <span className="font-montserrat font-bold">
                             {formatVal(amountBreakdown(selectedProperty).total, currency)}
                           </span>
@@ -545,12 +548,6 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         <span>{actionMode === 'buy' ? 'Добавляемая доля:' : 'Высвобождаемая доля:'}</span>
                         <span className="font-montserrat font-bold text-gray-800">
                           {actionMode === 'buy' ? '+' : '-'}{calculateOwnershipYieldGain(selectedProperty).addedPercentage.toFixed(3)}% собственности
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-600">
-                        <span>{actionMode === 'buy' ? 'Прирост дохода:' : 'Снижение дохода:'}</span>
-                        <span className={actionMode === 'buy' ? 'text-[#4F7942] font-montserrat font-bold' : 'text-rose-700 font-montserrat font-bold'}>
-                          {actionMode === 'buy' ? '+' : '-'}{formatVal(calculateOwnershipYieldGain(selectedProperty).addedYield, currency, true)}/мес
                         </span>
                       </div>
                       <div className="pt-2 border-t border-gray-200 flex justify-between text-sm font-serif font-bold text-gray-900">
@@ -575,6 +572,10 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </div>
                   </div>
 
+                  {submitError && (
+                    <p className="text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-sm px-3 py-2">{submitError}</p>
+                  )}
+
                   {/* Action buttons */}
                   <div className="flex gap-3 pt-2">
                     <button 
@@ -585,10 +586,11 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     </button>
                     <button 
                       onClick={handleConfirmAction}
-                      className="flex-1 bg-[#111111] hover:bg-[#A38D6D] text-white rounded-md py-2.5 text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer shadow-sm"
+                      disabled={submitting}
+                      className="disabled:opacity-50 disabled:cursor-wait flex-1 bg-[#111111] hover:bg-[#A38D6D] text-white rounded-md py-2.5 text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer shadow-sm"
                       id="confirm-acquire-shares-btn"
                     >
-                      {actionMode === 'buy' ? 'Авторизовать кошелек' : 'Подтвердить продажу'}
+                      {submitting ? 'Создаём заявку…' : 'Создать заявку'}
                     </button>
                   </div>
                 </div>
@@ -737,7 +739,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                     <div>
                       <div className="flex justify-between text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">
                         <span>Продано долей</span>
-                        <span className="text-gray-700">{soldPct.toFixed(2)}%</span>
+                        <span className="text-gray-700">{fmtPct(soldPct)}</span>
                       </div>
                       <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-[#A38D6D]" style={{ width: `${Math.min(100, soldPct)}%` }} />
@@ -754,7 +756,7 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                         {[
                           ['Куплено токенов', (dp.tokensOwned || 0).toLocaleString('ru-RU')],
                           ['Инвестировано', formatVal(dp.totalInvested, dp.currency)],
-                          ['Доля', `${dp.ownershipPercentage.toFixed(2)}%`],
+                          ['Доля', fmtPct(dp.ownershipPercentage)],
                         ].map(([label, value]) => (
                           <div key={label} className="bg-[#FAF8F3] border border-[#A38D6D]/20 rounded-sm p-3">
                             <span className="text-[8px] tracking-widest uppercase text-gray-400 font-bold block">{label}</span>
@@ -828,14 +830,6 @@ export default function PropertiesList({ properties, onInvest, onSell, currency 
                       className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer bg-[#111111] hover:bg-[#A38D6D] text-white py-3 rounded-md text-[9px] uppercase tracking-widest transition-all font-semibold"
                     >
                       <Plus size={12} /> <span>Купить</span>
-                    </button>
-                  )}
-                  {invested && (
-                    <button
-                      onClick={() => { const p = dp; setDetailProperty(null); handleOpenAction(p, 'sell'); }}
-                      className={`${canBuy ? 'flex-1' : 'w-full'} flex items-center justify-center cursor-pointer border border-[#A38D6D] text-[#A38D6D] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 py-3 rounded-md text-[9px] uppercase tracking-widest transition-all font-semibold bg-white`}
-                    >
-                      Продать
                     </button>
                   )}
                   {!canBuy && !invested && (

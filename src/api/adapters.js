@@ -191,6 +191,8 @@ const INVESTMENT_STATUS = {
   Rejected: 'rejected',
   Cancelled: 'cancelled',
   Expired: 'expired',
+  Withdrawn: 'withdrawn',
+  Annulled: 'annulled',
 };
 
 /** Human-readable labels for the five application states. */
@@ -200,6 +202,8 @@ export const INVESTMENT_STATUS_LABELS = {
   rejected: 'Отклонена',
   cancelled: 'Отменена',
   expired: 'Истекла',
+  withdrawn: 'Отозвана',
+  annulled: 'Аннулирована',
   unknown: 'Неизвестно',
 };
 
@@ -224,6 +228,9 @@ export function mapInvestmentDto(dto) {
     reservedUntilUtc: dto.reservedUntilUtc ?? null,
     rejectionReason: dto.rejectionReason ?? null,
     createdAtUtc: dto.createdAtUtc ?? null,
+    transactionHash: dto.transactionHash ?? null,
+    onChainStatus: dto.onChainStatus ?? null,
+    withdrawalDeadlineUtc: dto.withdrawalDeadlineUtc ?? null,
   };
 }
 
@@ -337,6 +344,8 @@ const ACTIVITY_BY_STATUS = {
   rejected: { title: 'Заявка отклонена', status: 'failed' },
   cancelled: { title: 'Заявка отменена', status: 'failed' },
   expired: { title: 'Резерв по заявке истёк', status: 'failed' },
+  withdrawn: { title: 'Инвестиция отозвана', status: 'failed' },
+  annulled: { title: 'Заявка аннулирована', status: 'failed' },
   unknown: { title: 'Заявка', status: 'pending' },
 };
 
@@ -361,6 +370,7 @@ export function buildActivitiesFromInvestments(investments, properties) {
         date: fmtActivityDate(timestamp),
         timestamp,
         status: shape.status,
+        txHash: inv.transactionHash ?? undefined,
       };
     })
     .sort((a, b) => b.timestamp - a.timestamp);

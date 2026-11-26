@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2, AlertTriangle, Clock, XCircle, CheckCircle2, Ban, Hourglass, Wallet } from 'lucide-react';
 import PaymentPanel from './PaymentPanel';
-import { fetchMyInvestments, cancelInvestment } from '../api/investments';
+import { fetchMyInvestments, cancelInvestment, withdrawInvestment } from '../api/investments';
 import { INVESTMENT_STATUS_LABELS } from '../api/adapters';
-import { formatVal } from '../utils';
+import { formatVal, plural } from '../utils';
 import ChainRecord from './ChainRecord';
 
 // One visual treatment per application state. A reserved application can be
@@ -15,6 +15,8 @@ const STATUS_STYLE = {
   rejected: { icon: XCircle, badge: 'bg-rose-600 text-white border-rose-700/40' },
   cancelled: { icon: Ban, badge: 'bg-gray-500 text-white border-gray-600/40' },
   expired: { icon: Hourglass, badge: 'bg-gray-400 text-white border-gray-500/40' },
+  withdrawn: { icon: Ban, badge: 'bg-gray-500 text-white border-gray-600/40' },
+  annulled: { icon: XCircle, badge: 'bg-rose-700 text-white border-rose-800/40' },
   unknown: { icon: AlertTriangle, badge: 'bg-gray-300 text-gray-800 border-gray-400/40' },
 };
 
@@ -27,9 +29,9 @@ function timeLeft(reservedUntilUtc) {
   const hours = Math.floor(ms / 3_600_000);
   if (hours >= 24) {
     const days = Math.floor(hours / 24);
-    return `${days} ${days === 1 ? 'день' : days < 5 ? 'дня' : 'дней'}`;
+    return `${days} ${plural(days, 'день', 'дня', 'дней')}`;
   }
-  if (hours >= 1) return `${hours} ${hours === 1 ? 'час' : hours < 5 ? 'часа' : 'часов'}`;
+  if (hours >= 1) return `${hours} ${plural(hours, 'час', 'часа', 'часов')}`;
   return `${Math.max(1, Math.floor(ms / 60_000))} мин`;
 }
 
@@ -76,6 +78,20 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
     load(controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  const handleWithdraw = async (id) => {
+    if (!window.confirm('Отозвать инвестицию? Доли будут сожжены, а деньги возвращены по закону о праве на отказ (14 дней).')) return;
+    setActionError(null);
+    setCancellingId(id);
+    try {
+      await withdrawInvestment(id);
+      await load();
+    } catch (err) {
+      setActionError(err?.message ?? 'Не удалось отозвать инвестицию.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const handleCancel = async (id) => {
     setActionError(null);
@@ -191,6 +207,21 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
                   reserved one has nothing written yet, and a rejected or lapsed
                   one never will have. */}
               {app.status === 'active' && <ChainRecord investmentId={app.id} />}
+
+              {app.status === 'active' && app.withdrawalDeadlineUtc &&
+                new Date(app.withdrawalDeadlineUtc).getTime() > Date.now() && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <span>Можно отказаться от инвестиции до {formatDateTime(app.withdrawalDeadlineUtc)} (14 дней).</span>
+                  <button
+                    onClick={() => handleWithdraw(app.id)}
+                    disabled={cancellingId === app.id}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:border-rose-300 hover:text-rose-600 disabled:opacity-50 cursor-pointer"
+                  >
+                    {cancellingId === app.id ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                    Отозвать
+                  </button>
+                </div>
+              )}
 
               {app.status === 'rejected' && (
                 <p className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700">

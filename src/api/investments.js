@@ -33,6 +33,17 @@ export async function fetchInvestment(id, { signal } = {}) {
  * There is no payment on the platform: an application is reserved, then an
  * operator approves or rejects it, or it lapses when the reservation expires.
  */
+/** POST /investments — create an application (reserves the shares). The backend derives the share
+ * count from the amount. Returns the new application's id. */
+export async function createInvestment(propertyId, amount, { signal } = {}) {
+  return apiFetch('/investments', { method: 'POST', body: { propertyId, amount: Number(amount) || 0 }, signal });
+}
+
+/** POST /investments/{id}/withdraw — the statutory 14-day withdrawal of an active investment. */
+export async function withdrawInvestment(id, { signal } = {}) {
+  await apiFetch(`/investments/${id}/withdraw`, { method: 'POST', signal });
+}
+
 export async function cancelInvestment(id, { signal } = {}) {
   await apiFetch(`/investments/${id}/cancel`, { method: 'POST', signal });
 }

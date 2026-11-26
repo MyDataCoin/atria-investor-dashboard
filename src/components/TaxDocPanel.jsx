@@ -16,7 +16,7 @@ function formatDate(iso) {
 /** The investor's income statements: issue one per year, download it, quote its verification code. */
 export default function TaxDocPanel({ investorName, currency = 'KGS' }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(currentYear - 1);
   const [statements, setStatements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -118,7 +118,7 @@ export default function TaxDocPanel({ investorName, currency = 'KGS' }) {
               id="tax-year"
               className="w-full text-xs p-2.5 border border-gray-250 rounded-md bg-white text-gray-900 focus:outline-none focus:border-[#A38D6D]"
             >
-              {[currentYear, currentYear - 1, currentYear - 2].map((yr) => (
+              {[currentYear - 1, currentYear - 2, currentYear - 3].map((yr) => (
                 <option key={yr} value={yr}>{yr}</option>
               ))}
             </select>

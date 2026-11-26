@@ -67,7 +67,7 @@ export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
             <span className="text-[8px] tracking-widest uppercase text-[#A38D6D] font-bold block mb-1">Пул распределения активов</span>
             <h4 className="text-lg font-bold text-gray-900">Распределение капитала</h4>
             <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
-              Распределение инвестированного капитала по отдельным физическим объектам. Цвета соответствуют весам токенов в реестре владения швейцарского SPV.
+              Распределение инвестированного капитала по отдельным физическим объектам. Цвета соответствуют долям вложенного капитала.
             </p>
 
             {/* List comparative bars - Render as beautiful grid */}
@@ -103,10 +103,6 @@ export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
             )}
           </div>
 
-          <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-            <span>Качество обеспечения долей портфеля:</span>
-            <span className="font-bold text-[#A38D6D]">100% ОБЕСПЕЧЕНО</span>
-          </div>
         </div>
 
       </div>

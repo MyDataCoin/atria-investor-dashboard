@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { plural } from '../utils';
 import { Loader2, AlertTriangle, ExternalLink, Copy, Check, Link2, Hourglass, ShieldCheck, XCircle } from 'lucide-react';
 import { fetchInvestmentChainRecord } from '../api/investments';
 import { ON_CHAIN_STATUS_LABELS } from '../api/adapters';
@@ -190,7 +191,7 @@ export default function ChainRecord({ investmentId }) {
       {record.status === 'pending' && (
         <p className="text-[11px] text-gray-500">
           Транзакция отправлена в сеть. Выпуск считается окончательным после{' '}
-          {record.confirmationsRequired} подтверждений — до этого момента сеть теоретически может
+          {record.confirmationsRequired} {plural(record.confirmationsRequired, 'подтверждение', 'подтверждения', 'подтверждений')} — до этого момента сеть теоретически может
           его откатить.
         </p>
       )}

@@ -95,9 +95,19 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
                 <div className="bg-[#FAF8F3]/60 border border-gray-100 hover:border-gray-200 rounded-sm p-4 transition-all space-y-2 font-montserrat">
                   <div className="flex justify-between items-start gap-4">
                     <span className="text-[10px] font-medium text-gray-400">{act.date}</span>
-                    <span className="inline-flex items-center gap-1 text-[9px] font-sans text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                      <CheckCircle2 size={10} /> завершено
-                    </span>
+                    {act.status === 'completed' ? (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-sans text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        <CheckCircle2 size={10} /> завершено
+                      </span>
+                    ) : act.status === 'pending' ? (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-sans text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        в процессе
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-sans text-gray-500 bg-gray-100 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        не состоялась
+                      </span>
+                    )}
                   </div>
 
                   <h5 className="font-serif text-sm font-semibold text-gray-900 leading-snug">
@@ -111,7 +121,7 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
                     </p>
                   )}
 
-                  {act.amount && (
+                  {act.amount && act.status !== 'failed' && (
                     <div className="text-xs font-sans text-gray-600 font-semibold">
                       Движение средств:{' '}
                       <span className={act.type === 'payout' ? 'text-emerald-700 font-bold' : 'text-amber-800 font-bold'}>

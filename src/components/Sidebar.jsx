@@ -143,7 +143,7 @@ export default function Sidebar({ currentSection, onSectionChange, isOpen, onClo
           <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-center gap-2">
             <Award size={14} className="text-[#A38D6D]" />
             <span className="font-mono text-[9px] uppercase tracking-wider text-[#A38D6D] font-bold">
-              Подтвержденный аккаунт
+              Кабинет инвестора
             </span>
           </div>
 

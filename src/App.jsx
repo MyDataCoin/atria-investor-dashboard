@@ -17,7 +17,7 @@ import {
   restoreSession, onSessionEnded, onSessionRestored, onForeignSession, getForeignRole, signOut,
 } from './api/client';
 import { fetchProperties } from './api/properties';
-import { fetchPortfolio } from './api/investments';
+import { fetchPortfolio, createInvestment } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
 import { fetchTickets } from './api/tickets';
 import {
@@ -156,117 +156,9 @@ export default function App() {
     return () => controller.abort();
   }, [authState]);
 
-  // Core callback: Investing / acquiring additional shares from a property card
-  const handleInvestInProperty = (propertyId, quantity, cost) => {
-    // 1. Update Property holding metrics locally
-    const updatedProperties = properties.map((prop) => {
-      if (prop.id === propertyId) {
-        const extraWeight = (cost / prop.currentValuation) * 100;
-        return {
-          ...prop,
-          ownershipPercentage: prop.ownershipPercentage + extraWeight,
-          totalInvested: prop.totalInvested + cost,
-          tokensOwned: prop.tokensOwned + quantity
-        };
-      }
-      return prop;
-    });
-    setProperties(updatedProperties);
-
-    // 2. Synchronize dynamic portfolio overview cards state
-    const matchedProp = properties.find(p => p.id === propertyId);
-    if (!matchedProp) return;
-
-    const extraYieldAddition = (cost / matchedProp.currentValuation) * matchedProp.monthlyYield;
-    const previousTotalInvested = stats.totalInvested;
-    const newTotalInvested = stats.totalInvested + cost;
-
-    // Recalculately estimate weighted average portfolio ROI
-    const weightedAverageRoi = ((stats.totalInvested * stats.averageRoi) + (cost * matchedProp.roi)) / newTotalInvested;
-
-    setStats((prev) => ({
-      ...prev,
-      totalInvested: newTotalInvested,
-      currentAssetValue: prev.currentAssetValue + cost * 1.05, // simulated value margin
-      monthlyIncome: Math.round(prev.monthlyIncome + extraYieldAddition),
-      averageRoi: Number(weightedAverageRoi.toFixed(2))
-    }));
-
-    // 3. Log active shopping event to activities chronicle timeline
-    const newActivity = {
-      id: `act-buy-${Date.now()}`,
-      type: 'purchase',
-      title: `Приобретено долей: ${quantity.toLocaleString()} за ${matchedProp.name}`,
-      propertyName: matchedProp.name,
-      amount: cost,
-      date: 'Только что',
-      timestamp: new Date(),
-      status: 'completed',
-      txHash: '0x' + Math.random().toString(16).substr(2, 6).toUpperCase() + '...SEC'
-    };
-    setActivities([newActivity, ...activities]);
-  };
-
-  // Core callback: Selling / liquidating shares of a property card
-  const handleSellProperty = (propertyId, quantity, proceeds) => {
-    // 1. Update Property holding metrics locally
-    const updatedProperties = properties.map((prop) => {
-      if (prop.id === propertyId) {
-        // Since we are selling, decrease ownership percentage, total invested (or ownership value), and tokens owned
-        const soldPercentage = (quantity / (prop.currentValuation / prop.tokenPrice)) * 100;
-        const remainingTokens = Math.max(0, prop.tokensOwned - quantity);
-        const remainingPercentage = Math.max(0, prop.ownershipPercentage - soldPercentage);
-        const remainingInvested = Math.max(0, prop.totalInvested - proceeds);
-        return {
-          ...prop,
-          ownershipPercentage: remainingPercentage,
-          totalInvested: remainingInvested,
-          // Investor fully exited this object — mark it as "Продан".
-          soldOut: remainingTokens === 0,
-          tokensOwned: remainingTokens
-        };
-      }
-      return prop;
-    });
-    setProperties(updatedProperties);
-
-    // 2. Synchronize dynamic stats
-    const matchedProp = properties.find(p => p.id === propertyId);
-    if (!matchedProp) return;
-
-    const lostYield = (proceeds / matchedProp.currentValuation) * matchedProp.monthlyYield;
-    const newTotalInvested = Math.max(0, stats.totalInvested - proceeds);
-    const newAssetValue = Math.max(0, stats.currentAssetValue - proceeds * 1.05);
-    const newMonthlyIncome = Math.max(0, Math.round(stats.monthlyIncome - lostYield));
-
-    // Recalculate average ROI safely
-    let newRoi = stats.averageRoi;
-    if (newTotalInvested > 0) {
-      const totalWeightedRoiSum = updatedProperties.reduce((sum, p) => sum + (p.totalInvested * p.roi), 0);
-      newRoi = Number((totalWeightedRoiSum / newTotalInvested).toFixed(2));
-    }
-
-    setStats((prev) => ({
-      ...prev,
-      totalInvested: newTotalInvested,
-      currentAssetValue: newAssetValue,
-      monthlyIncome: newMonthlyIncome,
-      averageRoi: newRoi
-    }));
-
-    // 3. Log to activities timeline
-    const newActivity = {
-      id: `act-sell-${Date.now()}`,
-      type: 'sale',
-      title: `Продано долей: ${quantity.toLocaleString()} за ${matchedProp.name}`,
-      propertyName: matchedProp.name,
-      amount: proceeds,
-      date: 'Только что',
-      timestamp: new Date(),
-      status: 'completed',
-      txHash: '0x' + Math.random().toString(16).substr(2, 6).toUpperCase() + '...SEC'
-    };
-    setActivities([newActivity, ...activities]);
+  // Buying from a property card creates a real application; paying it happens in «Мои заявки».
+  const handleInvestInProperty = async (propertyId, _quantity, cost) => {
+    await createInvestment(propertyId, cost);
   };
 
   // Callback to append custom manual yields broadcast simulator
@@ -321,7 +213,7 @@ export default function App() {
               </div>
               {ownedProperties.length === 0
                 ? emptyHoldings
-                : <PropertiesList properties={ownedProperties.slice(0, 3)} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />}
+                : <PropertiesList properties={ownedProperties.slice(0, 3)} onInvest={handleInvestInProperty} onApplicationCreated={() => setCurrentSection('applications')} currency={currency} />}
             </div>
 
             {/* Micro timelines preview section */}
@@ -345,7 +237,7 @@ export default function App() {
       case 'properties':
         return ownedProperties.length === 0
           ? emptyHoldings
-          : <PropertiesList properties={ownedProperties} onInvest={handleInvestInProperty} onSell={handleSellProperty} currency={currency} />;
+          : <PropertiesList properties={ownedProperties} onInvest={handleInvestInProperty} onApplicationCreated={() => setCurrentSection('applications')} currency={currency} />;
       case 'applications':
         // Applications are read fresh from /investments/me: the portfolio feed
         // only carries what is already held, and a reservation changes hands

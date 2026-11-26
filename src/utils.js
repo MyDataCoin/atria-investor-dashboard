@@ -30,3 +30,35 @@ export function formatVal(amount, currency = 'KGS', includeFraction = false) {
 
   return `${formatted} с`;
 }
+
+
+/**
+ * Percentage that never hides a real holding: 1 share of 109 294 is 0.0009%, which toFixed(2)
+ * prints as "0.00%" — reading as "you own nothing".
+ */
+export function fmtPct(p) {
+  const v = Number(p) || 0;
+  if (v === 0) return '0%';
+  if (v < 0.0001) return '<0.0001%';
+  if (v < 0.01) return `${v.toLocaleString('ru-RU', { maximumSignificantDigits: 2 })}%`;
+  return `${v.toFixed(2)}%`;
+}
+
+/** Area that keeps small fractions visible: 0.00046 m² must not round to "0 м²". */
+export function fmtArea(sqm) {
+  const v = Number(sqm) || 0;
+  if (v === 0) return '0';
+  if (v < 0.01) return v.toLocaleString('ru-RU', { maximumSignificantDigits: 2 });
+  return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
+
+/** Russian noun form for a count: plural(1,'токен','токена','токенов') -> 'токен'. */
+export function plural(n, one, few, many) {
+  const a = Math.abs(Math.trunc(Number(n) || 0));
+  const m10 = a % 10;
+  const m100 = a % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}

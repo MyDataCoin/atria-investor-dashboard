@@ -17,7 +17,7 @@ export default function Overview({ stats, currency = 'USD' }) {
       label: 'Стоимость активов',
       value: formatVal(stats.currentAssetValue, currency),
       icon: DollarSign,
-      desc: 'Оценка стоимости в блокчейне',
+      desc: 'По цене покупки долей',
     },
     {
       id: 'monthly-income',
@@ -90,9 +90,7 @@ export default function Overview({ stats, currency = 'USD' }) {
                   +{formatVal(stats.unrealizedGains, currency, true)}
                 </p>
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded">
-                +14.79%
-              </span>
+
             </div>
 
             <div id="metric-distributions" className="flex items-center justify-between border-b border-gray-50 pb-4">
@@ -114,21 +112,17 @@ export default function Overview({ stats, currency = 'USD' }) {
                   {stats.averageRoi.toFixed(2)}%
                 </p>
               </div>
-              <span className="text-[10px] text-gray-400 font-bold">
-                Ср. 5.2%
-              </span>
+
             </div>
 
             <div id="metric-return" className="flex items-center justify-between border-b border-gray-50 pb-4">
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Совокупный доход</span>
                 <p className="font-bold text-lg text-[#1A1A1A] mt-1">
-                  +{formatVal(166210, currency, true)}
+                  +{formatVal((stats.unrealizedGains || 0) + (stats.cashDistributions || 0), currency, true)}
                 </p>
               </div>
-              <span className="text-[10px] text-emerald-600 font-bold uppercase flex items-center gap-0.5">
-                Высокий <ArrowUpRight size={12} />
-              </span>
+
             </div>
 
           </div>
