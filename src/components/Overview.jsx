@@ -24,14 +24,14 @@ export default function Overview({ stats, currency = 'USD' }) {
       label: 'Ежемесячный доход',
       value: formatVal(stats.monthlyIncome, currency),
       icon: Sparkles,
-      desc: 'Регулярные ежемесячные выплаты',
+      desc: 'В среднем за последние 12 месяцев',
     },
     {
       id: 'average-roi',
-      label: 'Доходность портфеля (ROI)',
+      label: 'Доходность портфеля',
       value: `${stats.averageRoi.toFixed(2)}%`,
       icon: Percent,
-      desc: 'Годовая ставка доходности активов',
+      desc: 'Выплаты за 12 месяцев к вложенному',
     }
   ];
 
@@ -100,14 +100,19 @@ export default function Overview({ stats, currency = 'USD' }) {
                   {formatVal(stats.cashDistributions, currency, true)}
                 </p>
               </div>
-              <span className="text-[10px] font-bold text-[#A38D6D] bg-[#A38D6D]/5 px-2.5 py-1 rounded">
-                Ликвидные
-              </span>
+              {stats.pendingIncome > 0 && (
+                <span
+                  className="text-[10px] font-bold text-[#A38D6D] bg-[#A38D6D]/5 px-2.5 py-1 rounded"
+                  title="Распределение утверждено, перечисление ещё не отмечено"
+                >
+                  +{formatVal(stats.pendingIncome, currency, true)} в пути
+                </span>
+              )}
             </div>
 
             <div id="metric-yield" className="flex items-center justify-between border-b border-gray-50 pb-4">
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Годовая доходность</span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Доходность за 12 мес.</span>
                 <p className="font-bold text-lg text-[#1A1A1A] mt-1">
                   {stats.averageRoi.toFixed(2)}%
                 </p>

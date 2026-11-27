@@ -20,11 +20,13 @@ import { fetchProperties } from './api/properties';
 import { fetchPortfolio, createInvestment } from './api/investments';
 import { fetchKycProfile } from './api/kyc';
 import { fetchTickets } from './api/tickets';
+import { fetchMyPayouts } from './api/payouts';
 import {
   applyInvestmentsToProperties,
   derivePortfolioStats,
   buildActivitiesFromInvestments,
   buildActivitiesFromTickets,
+  buildActivitiesFromPayouts,
   buildAssetAllocation,
 } from './api/adapters';
 
@@ -118,10 +120,22 @@ export default function App() {
           // Leave the empty portfolio default; the catalogue still renders.
         }
 
-        setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
-        setStats(derivePortfolioStats(portfolio));
+        // Payouts feed the income figures. Non-fatal: without them income shows as zero, which is
+        // also the truth until the first distribution is paid.
+        let payouts = [];
+        try {
+          payouts = await fetchMyPayouts({ signal });
+        } catch (payoutErr) {
+          if (payoutErr?.name === 'AbortError') throw payoutErr;
+        }
 
-        const investmentActs = buildActivitiesFromInvestments(portfolio.investments, catalogue);
+        setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
+        setStats(derivePortfolioStats(portfolio, payouts));
+
+        const investmentActs = [
+          ...buildActivitiesFromInvestments(portfolio.investments, catalogue),
+          ...buildActivitiesFromPayouts(payouts, catalogue),
+        ];
 
         // Fold support-ticket events (ticket created / support replied) into the
         // same chronicle. Non-fatal — the timeline still renders without them.
@@ -163,16 +177,8 @@ export default function App() {
 
   // Callback to append custom manual yields broadcast simulator
   const handleAddManualActivity = (customActivity) => {
+    // Only the timeline: income figures come from paid distributions, never from a local entry.
     setActivities([customActivity, ...activities]);
-    
-    // If it's a layout payout distribution change, increase cash statistics
-    if (customActivity.type === 'payout') {
-      setStats((prev) => ({
-        ...prev,
-        monthlyIncome: prev.monthlyIncome + customActivity.amount,
-        cashDistributions: prev.cashDistributions + customActivity.amount
-      }));
-    }
   };
 
   // The dashboard shows only assets the investor actually holds — i.e. catalogue

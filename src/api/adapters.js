@@ -294,24 +294,61 @@ export function applyInvestmentsToProperties(properties, investments) {
   });
 }
 
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
 /**
- * Derive the Overview/Header stats block from a mapped PortfolioDto.
+ * Derive the Overview/Header stats block from a mapped PortfolioDto and the investor's payouts.
  *
- * Backend-fed: totalInvested. currentAssetValue is shown at cost (no valuation
- * feed yet). Yield, ROI and distribution figures have no API source and stay 0
- * until the backend exposes them — honest zeros over invented numbers.
+ * Income is only what was actually paid: dividend lines from /payouts/me with status «paid».
+ * A capital return is the investor's own money coming back, not income, and a pending or failed
+ * line was not received. Monthly income is the last 12 months of paid dividends divided by 12, and
+ * yield is the same 12 months against what was invested — both are facts about the past, not a
+ * forecast. currentAssetValue stays at cost: there is no valuation feed, so no unrealized gain.
  */
-export function derivePortfolioStats(portfolio) {
+export function derivePortfolioStats(portfolio, payouts = [], now = Date.now()) {
   const totalInvested = Number(portfolio?.totalInvested ?? 0);
+
+  const paidIncome = (payouts ?? []).filter(
+    (p) => p.kind === 'Dividend' && p.status === 'paid' && p.paidAtUtc,
+  );
+  const cashDistributions = paidIncome.reduce((sum, p) => sum + p.amount, 0);
+  const lastYear = paidIncome
+    .filter((p) => now - new Date(p.paidAtUtc).getTime() <= YEAR_MS)
+    .reduce((sum, p) => sum + p.amount, 0);
+
   return {
     totalInvested,
     currentAssetValue: totalInvested,
-    monthlyIncome: 0,
-    averageRoi: 0,
+    monthlyIncome: lastYear / 12,
+    averageRoi: totalInvested > 0 ? (lastYear / totalInvested) * 100 : 0,
     portfolioGrowthPct: 0,
     unrealizedGains: 0,
-    cashDistributions: 0,
+    cashDistributions,
+    pendingIncome: (payouts ?? [])
+      .filter((p) => p.kind === 'Dividend' && p.status === 'pending')
+      .reduce((sum, p) => sum + p.amount, 0),
   };
+}
+
+/** Timeline entries for paid distributions — the money that actually reached the investor. */
+export function buildActivitiesFromPayouts(payouts, properties) {
+  const nameById = new Map((properties ?? []).map((p) => [p.id, p.name]));
+  return (payouts ?? [])
+    .filter((p) => p.status === 'paid' && p.paidAtUtc)
+    .map((p) => {
+      const timestamp = new Date(p.paidAtUtc);
+      const propertyName = nameById.get(p.propertyId) ?? 'Объект недвижимости';
+      return {
+        id: `payout-${p.runId}`,
+        type: 'payout',
+        title: `${p.kind === 'CapitalReturn' ? 'Возврат капитала' : 'Выплата дохода'}: «${propertyName}»`,
+        propertyName,
+        amount: p.amount,
+        date: fmtActivityDate(timestamp),
+        timestamp,
+        status: 'completed',
+      };
+    });
 }
 
 // Palette for the capital-allocation chart, cycled per property.
