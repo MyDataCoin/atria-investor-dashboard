@@ -125,7 +125,7 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
                     <div className="text-xs font-sans text-gray-600 font-semibold">
                       Движение средств:{' '}
                       <span className={act.type === 'payout' ? 'text-emerald-700 font-bold' : 'text-amber-800 font-bold'}>
-                        {act.type === 'payout' ? '+' : ''}{formatVal(act.amount, currency)}
+                        {act.type === 'payout' ? '+' : ''}{formatVal(act.amount, currency, !Number.isInteger(act.amount))}
                       </span>
                     </div>
                   )}

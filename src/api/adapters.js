@@ -231,6 +231,7 @@ export function mapInvestmentDto(dto) {
     transactionHash: dto.transactionHash ?? null,
     onChainStatus: dto.onChainStatus ?? null,
     withdrawalDeadlineUtc: dto.withdrawalDeadlineUtc ?? null,
+    receivedKgs: dto.receivedKgs == null ? null : Number(dto.receivedKgs),
   };
 }
 
@@ -403,7 +404,9 @@ export function buildActivitiesFromInvestments(investments, properties) {
         type: inv.status === 'active' ? 'purchase' : 'application',
         title: `${shape.title}: «${propertyName}»`,
         propertyName,
-        amount: inv.amount,
+        // Money that actually moved: what arrived for a crypto-paid application (a short payment
+        // the platform accepted is less than the price), otherwise the application amount.
+        amount: inv.receivedKgs ?? inv.amount,
         date: fmtActivityDate(timestamp),
         timestamp,
         status: shape.status,
