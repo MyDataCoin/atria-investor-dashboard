@@ -10,14 +10,14 @@ export default function Overview({ stats, currency = 'USD' }) {
       label: 'Всего инвестировано',
       value: formatVal(stats.totalInvested, currency),
       icon: Wallet,
-      desc: 'Размещенный капитал в недвижимости',
+      desc: 'Сколько вы фактически заплатили за доли',
     },
     {
       id: 'asset-value',
       label: 'Стоимость активов',
       value: formatVal(stats.currentAssetValue, currency),
       icon: DollarSign,
-      desc: 'По цене покупки долей',
+      desc: 'По цене доли в выпуске',
     },
     {
       id: 'monthly-income',

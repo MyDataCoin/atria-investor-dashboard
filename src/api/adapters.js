@@ -270,7 +270,8 @@ export function applyInvestmentsToProperties(properties, investments) {
     const running = investedByProperty.get(inv.propertyId) ?? { tokens: 0, amount: 0 };
     investedByProperty.set(inv.propertyId, {
       tokens: running.tokens + inv.tokenCount,
-      amount: running.amount + inv.amount,
+      // What the investor actually paid: less than the price when a short payment was accepted.
+      amount: running.amount + (inv.receivedKgs ?? inv.amount),
     });
   }
 
@@ -304,10 +305,20 @@ const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
  * A capital return is the investor's own money coming back, not income, and a pending or failed
  * line was not received. Monthly income is the last 12 months of paid dividends divided by 12, and
  * yield is the same 12 months against what was invested — both are facts about the past, not a
- * forecast. currentAssetValue stays at cost: there is no valuation feed, so no unrealized gain.
+ * forecast.
+ *
+ * Invested is what the investor actually paid for active holdings; asset value is those holdings at
+ * the share price. They differ when a short payment was accepted and written off — the investor got
+ * the shares for less than they are priced at, and that difference is the unrealized gain. There is
+ * no valuation feed, so beyond that the value stays at the share price.
  */
 export function derivePortfolioStats(portfolio, payouts = [], now = Date.now()) {
-  const totalInvested = Number(portfolio?.totalInvested ?? 0);
+  const active = (portfolio?.investments ?? []).filter((i) => i.status === 'active');
+  const atPrice = active.reduce((sum, i) => sum + i.amount, 0);
+  const paid = active.reduce((sum, i) => sum + (i.receivedKgs ?? i.amount), 0);
+  // Fall back to the backend total when the list is missing (older payload shape).
+  const totalInvested = active.length > 0 ? paid : Number(portfolio?.totalInvested ?? 0);
+  const currentAssetValue = active.length > 0 ? atPrice : totalInvested;
 
   const paidIncome = (payouts ?? []).filter(
     (p) => p.kind === 'Dividend' && p.status === 'paid' && p.paidAtUtc,
@@ -319,11 +330,11 @@ export function derivePortfolioStats(portfolio, payouts = [], now = Date.now()) 
 
   return {
     totalInvested,
-    currentAssetValue: totalInvested,
+    currentAssetValue,
     monthlyIncome: lastYear / 12,
     averageRoi: totalInvested > 0 ? (lastYear / totalInvested) * 100 : 0,
     portfolioGrowthPct: 0,
-    unrealizedGains: 0,
+    unrealizedGains: Math.max(0, currentAssetValue - totalInvested),
     cashDistributions,
     pendingIncome: (payouts ?? [])
       .filter((p) => p.kind === 'Dividend' && p.status === 'pending')
