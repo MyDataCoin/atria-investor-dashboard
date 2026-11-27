@@ -5,6 +5,7 @@ import { fetchMyInvestments, cancelInvestment, withdrawInvestment } from '../api
 import { INVESTMENT_STATUS_LABELS } from '../api/adapters';
 import { formatVal, plural } from '../utils';
 import ChainRecord from './ChainRecord';
+import PaymentRecord from './PaymentRecord';
 
 // One visual treatment per application state. A reserved application can be
 // paid from here (crypto invoice or bank transfer); an operator then approves or
@@ -206,6 +207,7 @@ export default function ApplicationsPanel({ properties = [], currency = 'KGS' })
               {/* Only an approved application has shares to look for on chain. A
                   reserved one has nothing written yet, and a rejected or lapsed
                   one never will have. */}
+              {app.status === 'active' && <PaymentRecord investmentId={app.id} />}
               {app.status === 'active' && <ChainRecord investmentId={app.id} />}
 
               {app.status === 'active' && app.withdrawalDeadlineUtc &&
