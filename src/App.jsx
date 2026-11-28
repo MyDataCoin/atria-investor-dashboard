@@ -334,7 +334,7 @@ export default function App() {
         <h1 className="font-serif font-bold text-xl text-gray-900">Требуется вход</h1>
         <p className="text-sm text-gray-500 max-w-sm">
           Личный кабинет открывается по сессии, которая заводится на сайте Atria — по номеру телефона
-          и коду из СМС.
+          и коду из Telegram.
         </p>
         <a
           href={SITE_URL}
