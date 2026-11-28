@@ -2,7 +2,33 @@ import React from 'react';
 import { TrendingUp, LineChart } from 'lucide-react';
 import { formatVal } from '../utils';
 
-export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
+const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+/**
+ * Paid dividends by month over the last 12 months, oldest first. Only money that actually reached
+ * the investor: dividend lines marked paid, dated by the payment. A capital return is the
+ * investor's own money and is not income.
+ */
+function monthlyDividends(payouts, now = new Date()) {
+  const months = [];
+  for (let i = 11; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS[d.getMonth()], year: d.getFullYear(), amount: 0 });
+  }
+  const byKey = new Map(months.map((m) => [m.key, m]));
+  for (const p of payouts ?? []) {
+    if (p.kind !== 'Dividend' || p.status !== 'paid' || !p.paidAtUtc) continue;
+    const d = new Date(p.paidAtUtc);
+    const slot = byKey.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (slot) slot.amount += Number(p.amount || 0);
+  }
+  return months;
+}
+
+export default function AnalyticsDash({ currency = 'KGS', allocation = [], payouts = [] }) {
+  const months = monthlyDividends(payouts);
+  const maxMonth = Math.max(0, ...months.map((m) => m.amount));
+  const yearTotal = months.reduce((sum, m) => sum + m.amount, 0);
 
   return (
     <div className="space-y-8 font-montserrat">
@@ -10,21 +36,19 @@ export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end border-b border-gray-100 pb-6 text-left">
         <div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-gray-400 font-bold block">
-            Правовая верификация и подтверждение доходности
+            Доход и структура вложений
           </span>
           <h3 className="text-2xl lg:text-3xl font-bold uppercase tracking-tight text-gray-900 mt-2 leading-tight">
-            Хроники аналитики портфеля
+            Аналитика портфеля
           </h3>
         </div>
         <p className="text-xs text-gray-500 leading-relaxed max-w-md font-medium">
-          Сводные статистические отчеты по вашей доходности от долевого владения активами. Значения представляют собой секьюритизированный капитал и фактические выплаты, аудит которых проводится по земельным реестрам в блокчейне.
+          Сколько дохода вы фактически получили по своим долям и как вложения распределены по объектам. Здесь только реальные выплаты и покупки — без прогнозов и оценок.
         </p>
       </div>
 
-      {/* Доход и рост портфеля рисовались из выдуманных рядов в data.js. Источника у них нет:
-          выплат ещё не было (модуль выплат не построен), а истории оценки объектов система не
-          ведёт. Нарисованная кривая доходности — это обещание, которого никто не давал, поэтому
-          вместо неё честная заглушка. */}
+      {/* Доход — из фактических выплат (/payouts/me). Кривой роста нет: истории переоценки
+          объектов система не ведёт, а нарисованная кривая была бы обещанием, которого никто не давал. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white border border-gray-100 p-6 lg:p-8 rounded-sm shadow-xs">
           <div className="text-left mb-4">
@@ -33,13 +57,40 @@ export default function AnalyticsDash({ currency = 'KGS', allocation = [] }) {
             </span>
             <h4 className="text-lg font-bold text-gray-900">Ежемесячные дивиденды</h4>
           </div>
-          <div className="h-[200px] flex flex-col items-center justify-center text-center gap-2 text-gray-400">
-            <TrendingUp size={22} className="text-gray-300" />
-            <p className="text-xs max-w-xs">
-              Выплат по вашим долям ещё не было — показывать нечего. График появится после первой
-              выплаты.
-            </p>
-          </div>
+          {yearTotal === 0 ? (
+            <div className="h-[200px] flex flex-col items-center justify-center text-center gap-2 text-gray-400">
+              <TrendingUp size={22} className="text-gray-300" />
+              <p className="text-xs max-w-xs">
+                За последние 12 месяцев выплат по вашим долям не было. График появится после первой
+                выплаты.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="h-[170px] flex items-end gap-1.5" role="img" aria-label="Выплаты дохода по месяцам">
+                {months.map((m) => (
+                  <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full group">
+                    <span className="text-[9px] font-bold text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity mb-1 whitespace-nowrap">
+                      {m.amount > 0 ? formatVal(m.amount, currency, true) : ''}
+                    </span>
+                    <div
+                      className={`w-full rounded-t-sm ${m.amount > 0 ? 'bg-[#A38D6D]' : 'bg-gray-100'}`}
+                      style={{ height: m.amount > 0 ? `${Math.max(4, (m.amount / maxMonth) * 100)}%` : '2px' }}
+                      title={`${m.label} ${m.year}: ${formatVal(m.amount, currency, true)}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1.5 mt-1.5">
+                {months.map((m) => (
+                  <span key={m.key} className="flex-1 text-center text-[9px] uppercase text-gray-400 font-bold">{m.label}</span>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-4">
+                За 12 месяцев получено <span className="font-bold text-gray-900">{formatVal(yearTotal, currency, true)}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white border border-gray-100 p-6 lg:p-8 rounded-sm shadow-xs">

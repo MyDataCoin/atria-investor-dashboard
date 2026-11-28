@@ -48,10 +48,10 @@ export default function ActivitiesTimeline({ activities, currency = 'USD' }) {
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
           <div className="text-left">
             <span className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold block">
-              Аудируемые хроники транзакций
+              Заявки, выплаты и обращения
             </span>
             <h3 className="font-serif text-xl lg:text-2xl font-bold tracking-tight text-gray-900 mt-1">
-              Баланс реестра смарт-аренды
+              История операций
             </h3>
           </div>
 

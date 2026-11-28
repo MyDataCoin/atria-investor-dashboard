@@ -47,6 +47,7 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [properties, setProperties] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -131,6 +132,7 @@ export default function App() {
 
         setProperties(applyInvestmentsToProperties(catalogue, portfolio.investments));
         setStats(derivePortfolioStats(portfolio, payouts));
+        setPayouts(payouts);
 
         const investmentActs = [
           ...buildActivitiesFromInvestments(portfolio.investments, catalogue),
@@ -256,7 +258,7 @@ export default function App() {
       case 'activity':
         return <ActivitiesTimeline activities={activities} onAddManualActivity={handleAddManualActivity} currency={currency} />;
       case 'analytics':
-        return <AnalyticsDash currency={currency} allocation={assetAllocation} />;
+        return <AnalyticsDash currency={currency} allocation={assetAllocation} payouts={payouts} />;
       case 'news':
         // Shared showcase: every published post is visible to all investors, not
         // filtered by portfolio. The property list only drives the scope filter.

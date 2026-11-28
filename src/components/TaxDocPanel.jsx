@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Download, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { FileText, Download, ShieldCheck, Loader2, AlertTriangle, Eye } from 'lucide-react';
 import { formatVal } from '../utils';
-import { issueTaxStatement, fetchMyTaxStatements, fetchTaxStatementDocument } from '../api/tax';
+import { issueTaxStatement, fetchMyTaxStatements, fetchTaxStatementDocument, fetchTaxStatementDraft } from '../api/tax';
 
 // The statement is issued and rendered by the server. It used to be assembled here with jsPDF and a
 // random document number — which proved nothing: the number came from this page, and nobody could
@@ -72,6 +72,32 @@ export default function TaxDocPanel({ investorName, currency = 'KGS' }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err?.message ?? 'Не удалось скачать справку.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // A draft opens in a new tab. The tab is opened before the request, while the click still counts
+  // as a user gesture — opened after the await, a popup blocker would swallow it.
+  const viewDraft = async () => {
+    setError(null);
+    setBusy('draft');
+    const tab = window.open('', '_blank');
+    try {
+      const response = await fetchTaxStatementDraft(currentYear);
+      const url = URL.createObjectURL(await response.blob());
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `draft-${currentYear}.html`;
+        link.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      tab?.close();
+      setError(err?.message ?? 'Не удалось сформировать черновик.');
     } finally {
       setBusy(null);
     }
@@ -151,6 +177,22 @@ export default function TaxDocPanel({ investorName, currency = 'KGS' }) {
                 <span>Сформировать справку</span>
               </>
             )}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-[#A38D6D]/40 bg-[#A38D6D]/5 px-4 py-3">
+          <p className="text-xs text-gray-600 max-w-md">
+            Справку за {currentYear} год можно будет выпустить после окончания года. Посмотреть, что в ней
+            будет на сегодня, можно уже сейчас — черновик не имеет номера и не является налоговым документом.
+          </p>
+          <button
+            onClick={viewDraft}
+            disabled={busy === 'draft'}
+            id="view-tax-draft-btn"
+            className="border border-[#A38D6D] text-[#A38D6D] hover:bg-[#A38D6D] hover:text-white disabled:opacity-40 px-4 py-2 rounded-md text-[9px] uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-2 font-bold"
+          >
+            {busy === 'draft' ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+            <span>Черновик за {currentYear}</span>
           </button>
         </div>
 
